@@ -1,0 +1,77 @@
+name: DeadTime Mobile Build
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: |
+          npm install -g @react-native-community/cli
+          npm install
+      
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v2
+        
+      - name: Create Android project
+        run: |
+          npx react-native init DeadTimeApp --template react-native-template-typescript
+          cp -r src/* DeadTimeApp/src/ || mkdir -p DeadTimeApp/src && cp -r src/* DeadTimeApp/src/
+          cp package.json DeadTimeApp/
+          cd DeadTimeApp
+          npm install
+          
+      - name: Build Android APK
+        run: |
+          cd DeadTimeApp/android
+          chmod +x gradlew
+          ./gradlew assembleRelease
+          
+      - name: Upload APK
+        uses: actions/upload-artifact@v3
+        with:
+          name: DeadTime-Android-APK
+          path: DeadTimeApp/android/app/build/outputs/apk/release/app-release.apk
+
+  build-ios:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+          
+      - name: Install dependencies
+        run: |
+          npm install -g @react-native-community/cli
+          npm install
+          
+      - name: Create iOS project
+        run: |
+          npx react-native init DeadTimeApp --template react-native-template-typescript
+          cp -r src/* DeadTimeApp/src/ || mkdir -p DeadTimeApp/src && cp -r src/* DeadTimeApp/src/
+          cp package.json DeadTimeApp/
+          cd DeadTimeApp
+          npm install
+          cd ios && pod install
+          
+      - name: Build iOS
+        run: |
+          cd DeadTimeApp
+          npx react-native run-ios --configuration Release --simulator="iPhone 15"
