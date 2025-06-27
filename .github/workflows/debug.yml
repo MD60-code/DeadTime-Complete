@@ -1,0 +1,15 @@
+name: Debug Repository
+
+on: [push]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Show files
+        run: |
+          echo "=== FILES IN ROOT ==="
+          ls -la
+          echo "=== LOOKING FOR package.json ==="
+          find . -name "package.json"
