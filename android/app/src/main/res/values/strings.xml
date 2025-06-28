@@ -1,0 +1,31 @@
+<resources>
+    <string name="app_name">DeadTime</string>
+    <string name="app_description">Transform dead time into digital gold</string>
+    
+    <!-- Permissions -->
+    <string name="location_permission_rationale">DeadTime needs location access to detect when you\'re waiting and provide relevant opportunities.</string>
+    <string name="background_location_permission_rationale">DeadTime needs background location to automatically detect waiting periods even when the app is not active.</string>
+    
+    <!-- Notifications -->
+    <string name="notification_channel_name">DeadTime Opportunities</string>
+    <string name="notification_channel_description">Notifications about earning opportunities during waiting periods</string>
+    <string name="opportunity_notification_title">Earning Opportunity Available!</string>
+    <string name="opportunity_notification_text">You could earn €12-18 during this wait. Tap to start!</string>
+    
+    <!-- API Keys (will be replaced with actual keys) -->
+    <string name="google_maps_key">YOUR_GOOGLE_MAPS_API_KEY_HERE</string>
+    
+    <!-- Error Messages -->
+    <string name="location_permission_denied">Location permission is required for DeadTime to work properly.</string>
+    <string name="network_error">Please check your internet connection and try again.</string>
+    <string name="general_error">Something went wrong. Please try again.</string>
+    
+    <!-- Loading Messages -->
+    <string name="loading">Loading...</string>
+    <string name="detecting_opportunity">Detecting opportunity...</string>
+    <string name="processing_payment">Processing payment...</string>
+    
+    <!-- Success Messages -->
+    <string name="payment_successful">Payment successful! €%.2f added to your account.</string>
+    <string name="task_completed">Task completed successfully!</string>
+</resources>
