@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- DeadTime Brand Colors -->
+    <color name="primary_color">#2563EB</color>
+    <color name="primary_dark_color">#1E40AF</color>
+    <color name="secondary_color">#10B981</color>
+    <color name="accent_color">#F59E0B</color>
+    
+    <!-- Background Colors -->
+    <color name="background_light">#FFFFFF</color>
+    <color name="background_dark">#1F2937</color>
+    <color name="surface_light">#F9FAFB</color>
+    <color name="surface_dark">#374151</color>
+    
+    <!-- Text Colors -->
+    <color name="text_primary_light">#111827</color>
+    <color name="text_primary_dark">#F9FAFB</color>
+    <color name="text_secondary_light">#6B7280</color>
+    <color name="text_secondary_dark">#D1D5DB</color>
+    
+    <!-- Success and Error Colors -->
+    <color name="success_color">#10B981</color>
+    <color name="error_color">#EF4444</color>
+    <color name="warning_color">#F59E0B</color>
+    <color name="info_color">#3B82F6</color>
+    
+    <!-- Splash Screen -->
+    <color name="splash_color">#2563EB</color>
+    <color name="splash_text_color">#FFFFFF</color>
+    
+    <!-- Card and Border Colors -->
+    <color name="border_light">#E5E7EB</color>
+    <color name="border_dark">#4B5563</color>
+    <color name="card_light">#FFFFFF</color>
+    <color name="card_dark">#374151</color>
+    
+    <!-- Opportunity Card Colors -->
+    <color name="opportunity_high">#10B981</color>
+    <color name="opportunity_medium">#F59E0B</color>
+    <color name="opportunity_low">#6B7280</color>
+    
+    <!-- Transparent Colors -->
+    <color name="black_overlay">#80000000</color>
+    <color name="white_overlay">#80FFFFFF</color>
+</resources>
