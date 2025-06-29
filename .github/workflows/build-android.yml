@@ -176,6 +176,9 @@ jobs:
       run: |
         cd android/app/src/main
         
+        # 🔥 ELIMINATE ALL EXISTING JAVA FILES FIRST
+        rm -rf java/
+        
         # Create MainActivity.java
         mkdir -p java/com/deadtime
         cat > java/com/deadtime/MainActivity.java << 'EOF'
