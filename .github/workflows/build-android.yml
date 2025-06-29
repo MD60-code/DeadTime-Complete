@@ -1,82 +1,58 @@
-name: Build DeadTime Android
+name: Build Android Debug APK
 
 on:
   push:
-    branches: [main, develop]
+    branches: [ main ]
   pull_request:
-    branches: [main]
+    branches: [ main ]
 
 jobs:
-  test-javascript:
+  build:
     runs-on: ubuntu-latest
-    
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '18'
-          
-      - name: Install dependencies
-        run: npm install
-        
-      - name: Run JavaScript tests
-        run: |
-          echo "✅ JavaScript dependencies installed successfully!"
-          npm run --if-present test -- --passWithNoTests || echo "No tests found, continuing..."
 
-  build-android:
-    needs: test-javascript
-    runs-on: ubuntu-latest
-    
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '18'
-          
-      - name: Setup Java 17
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'temurin'
-          java-version: '17'
-          
-      - name: Install dependencies
-        run: npm install
+    - name: Checkout code
+      uses: actions/checkout@v3
 
-      - name: Download gradle-wrapper.jar if missing
-        run: |
-          if [ ! -f android/gradle/wrapper/gradle-wrapper.jar ]; then
-            echo "Downloading gradle-wrapper.jar..."
-            mkdir -p android/gradle/wrapper
-            curl -L https://github.com/gradle/gradle/raw/v7.5.1/gradle/wrapper/gradle-wrapper.jar -o android/gradle/wrapper/gradle-wrapper.jar
-          fi
-          
-      - name: Make gradlew executable
-        run: chmod +x android/gradlew
+    - name: Setup Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'
+        cache: 'npm'
+
+    - name: Setup Java
+      uses: actions/setup-java@v3
+      with:
+        distribution: 'temurin'
+        java-version: '17'
+
+    - name: Setup Android SDK
+      uses: android-actions/setup-android@v3
+
+    - name: Setup Android NDK
+      uses: nttld/setup-ndk@v1
+      with:
+        ndk-version: r23c
         
-      - name: Create dummy keystore
-        run: |
-          cd android/app
-          keytool -genkey -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
-          
-      - name: Build Android Debug APK
-        run: |
-          cd android
-          ./gradlew assembleDebug --stacktrace
-          
-      - name: Upload APK artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: app-debug-apk
-          path: android/app/build/outputs/apk/debug/app-debug.apk
-          
-      - name: Build success
-        run: |
-          echo "🎉 Android build completed successfully!"
-          echo "📱 APK generated and ready for testing!"
+    - name: Set NDK environment variables
+      run: |
+        echo "ANDROID_NDK_ROOT=$ANDROID_NDK_HOME" >> $GITHUB_ENV
+        echo "ANDROID_NDK_HOME=$ANDROID_NDK_HOME" >> $GITHUB_ENV
+        echo "NDK_HOME=$ANDROID_NDK_HOME" >> $GITHUB_ENV
+
+    - name: Install dependencies
+      run: npm install
+
+    - name: Grant execute permission for gradlew
+      run: chmod +x android/gradlew
+
+    - name: Build Android Debug APK
+      run: |
+        cd android
+        ./gradlew assembleDebug --stacktrace
+
+    - name: Upload APK
+      uses: actions/upload-artifact@v3
+      with:
+        name: debug-apk
+        path: android/app/build/outputs/apk/debug/app-debug.apk
