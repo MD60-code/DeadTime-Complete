@@ -21,10 +21,6 @@ android {
     }
 
     defaultConfig {
-        // contenuto qui...
-    }
-        
-    defaultConfig {
         applicationId "com.deadtime.complete"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
@@ -33,6 +29,20 @@ android {
         multiDexEnabled true
     }
 
+    buildFeatures {
+        aidl false
+        renderScript false
+        resValues false
+        shaders false
+    }
+    
+    externalNativeBuild {
+        cmake {
+            path "CMakeLists.txt"
+            version "3.10.2"
+        }
+    }
+    
     splits {
         abi {
             reset()
