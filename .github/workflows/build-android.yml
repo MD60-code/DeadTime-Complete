@@ -48,7 +48,17 @@ jobs:
           
       - name: Install dependencies
         run: npm install
-        
+
+        - name: Download gradle-wrapper.jar if missing
+        run: |
+          if [ ! -f android/gradle/wrapper/gradle-wrapper.jar ]; then
+            echo "Downloading gradle-wrapper.jar..."
+            mkdir -p android/gradle/wrapper
+            curl -L https://github.com/gradle/gradle/raw/v7.5.1/gradle/wrapper/gradle-wrapper.jar -o android/gradle/wrapper/gradle-wrapper.jar
+          fi
+          
+      - name: Make gradlew executable
+        run: chmod +x android/gradlew
       - name: Make gradlew executable
         run: chmod +x android/gradlew
         
