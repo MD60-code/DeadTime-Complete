@@ -12,14 +12,7 @@ android {
     namespace "com.deadtime.complete"
     compileSdkVersion rootProject.ext.compileSdkVersion
     buildToolsVersion rootProject.ext.buildToolsVersion
-
-    packagingOptions {
-        pickFirst "lib/x86/libc++_shared.so"
-        pickFirst "lib/x86_64/libc++_shared.so"
-        pickFirst "lib/arm64-v8a/libc++_shared.so"
-        pickFirst "lib/armeabi-v7a/libc++_shared.so"
-    }
-
+    
     defaultConfig {
         applicationId "com.deadtime.complete"
         minSdkVersion rootProject.ext.minSdkVersion
@@ -27,13 +20,6 @@ android {
         versionCode 1
         versionName "1.0"
         multiDexEnabled true
-    }
-
-    buildFeatures {
-        aidl false
-        renderScript false
-        resValues false
-        shaders false
     }
     
     splits {
@@ -44,7 +30,7 @@ android {
             include "armeabi-v7a", "x86", "arm64-v8a", "x86_64"
         }
     }
-
+    
     signingConfigs {
         debug {
             storeFile file('debug.keystore')
@@ -53,7 +39,7 @@ android {
             keyPassword 'android'
         }
     }
-
+    
     buildTypes {
         debug {
             signingConfig signingConfigs.debug
@@ -68,28 +54,14 @@ android {
 
 dependencies {
     implementation fileTree(dir: "libs", include: ["*.jar"])
-    //noinspection GradleDynamicVersion
     implementation "com.facebook.react:react-native:+"
     implementation "androidx.swiperefreshlayout:swiperefreshlayout:1.0.0"
     
-    // Firebase
     implementation 'com.google.firebase:firebase-analytics:21.3.0'
     implementation 'com.google.firebase:firebase-messaging:23.2.1'
-    
-    // Google Play Services
     implementation 'com.google.android.gms:play-services-location:21.0.1'
     implementation 'com.google.android.gms:play-services-maps:18.1.0'
     
-    debugImplementation("com.facebook.flipper:flipper:${FLIPPER_VERSION}") {
-        exclude group:'com.facebook.fbjni'
-    }
-    debugImplementation("com.facebook.flipper:flipper-network-plugin:${FLIPPER_VERSION}") {
-        exclude group:'com.facebook.fbjni'
-    }
-    debugImplementation("com.facebook.flipper:flipper-fresco-plugin:${FLIPPER_VERSION}") {
-        exclude group:'com.facebook.fbjni'
-    }
-
     if (enableHermes) {
         implementation("com.facebook.react:hermes-engine:+")
     } else {
