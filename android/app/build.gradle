@@ -13,6 +13,22 @@ android {
     compileSdkVersion rootProject.ext.compileSdkVersion
     buildToolsVersion rootProject.ext.buildToolsVersion
 
+    android {
+    namespace "com.deadtime.complete"
+    compileSdkVersion rootProject.ext.compileSdkVersion
+    buildToolsVersion rootProject.ext.buildToolsVersion
+
+    packagingOptions {
+        pickFirst "lib/x86/libc++_shared.so"
+        pickFirst "lib/x86_64/libc++_shared.so"
+        pickFirst "lib/arm64-v8a/libc++_shared.so"
+        pickFirst "lib/armeabi-v7a/libc++_shared.so"
+    }
+
+    defaultConfig {
+        // contenuto qui...
+    }
+        
     defaultConfig {
         applicationId "com.deadtime.complete"
         minSdkVersion rootProject.ext.minSdkVersion
