@@ -84,14 +84,9 @@ jobs:
         }
         EOF
         
-        # Fix app/build.gradle - add compileSdkVersion at the top
+        # Disable Google Services plugin temporarily to avoid Firebase issues
         cd app
         cp build.gradle build.gradle.backup
-        
-        # Add compileSdkVersion to the beginning of app/build.gradle
-        sed -i '1i\android.compileSdkVersion = 33' build.gradle
-        
-        # Remove or comment out google-services plugin if it causes issues
         sed -i 's/apply plugin: .com.google.gms.google-services./\/\/ apply plugin: "com.google.gms.google-services"/' build.gradle
 
     - name: Initialize Gradle Wrapper
