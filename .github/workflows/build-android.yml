@@ -47,11 +47,11 @@ jobs:
     - name: Install dependencies
       run: npm install
 
-    - name: Fix Android configuration with correct plugin
+    - name: Fix Android build configuration
       run: |
         cd android
         
-        # Fix root build.gradle with React Native plugin
+        # Create working build.gradle without React Native plugin
         cp build.gradle build.gradle.backup
         cat > build.gradle << 'EOF'
         buildscript {
@@ -68,7 +68,6 @@ jobs:
             }
             dependencies {
                 classpath("com.android.tools.build:gradle:7.3.1")
-                classpath("com.facebook.react:react-native-gradle-plugin")
             }
         }
         
@@ -83,14 +82,19 @@ jobs:
         }
         EOF
         
-        # Fix app build.gradle with proper configuration
+        # Create minimal app build.gradle that should work
         cd app
         cp build.gradle build.gradle.backup
         cat > build.gradle << 'EOF'
         apply plugin: "com.android.application"
-        apply plugin: "com.facebook.react"
         
         import com.android.build.OutputFile
+        
+        project.ext.react = [
+            enableHermes: false,
+        ]
+        
+        apply from: "../../node_modules/react-native/react.gradle"
         
         android {
             namespace "com.deadtime"
@@ -121,16 +125,15 @@ jobs:
         }
         
         dependencies {
-            implementation("com.facebook.react:react-android")
+            implementation("com.facebook.react:react-native:+")
             implementation("androidx.swiperefreshlayout:swiperefreshlayout:1.0.0")
             
-            debugImplementation("com.facebook.flipper:flipper:0.125.0")
-            debugImplementation("com.facebook.flipper:flipper-network-plugin:0.125.0")
-            
-            if (hermesEnabled.toBoolean()) {
-                implementation("com.facebook.react:hermes-android")
+            if (enableHermes) {
+                def hermesPath = "../../node_modules/hermes-engine/android/"
+                debugImplementation files(hermesPath + "hermes-debug.aar")
+                releaseImplementation files(hermesPath + "hermes-release.aar")
             } else {
-                implementation jscFlavor
+                implementation 'org.webkit:android-jsc:+'
             }
         }
         EOF
