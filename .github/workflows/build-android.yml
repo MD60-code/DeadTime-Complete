@@ -53,7 +53,7 @@ jobs:
         # Backup original build.gradle
         cp build.gradle build.gradle.backup
         
-        # Add Facebook repository
+        # Create correct build.gradle with repositories in buildscript
         cat > build.gradle << 'EOF'
         buildscript {
             ext {
@@ -62,6 +62,12 @@ jobs:
                 compileSdkVersion = 33
                 targetSdkVersion = 33
                 ndkVersion = "23.1.7779620"
+            }
+            repositories {
+                google()
+                mavenCentral()
+                maven { url "https://www.jitpack.io" }
+                maven { url "https://repo1.maven.org/maven2" }
             }
             dependencies {
                 classpath("com.android.tools.build:gradle:7.3.1")
