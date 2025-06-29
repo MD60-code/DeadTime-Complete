@@ -44,14 +44,35 @@ jobs:
       with:
         gradle-version: 8.0.2
 
-    - name: Install dependencies
-      run: npm install
+    - name: DRASTICALLY remove all problematic libraries
+      run: |
+        # REMOVE ALL PROBLEMATIC FOLDERS
+        rm -rf node_modules/@react-native-firebase
+        rm -rf node_modules/lottie-react-native
+        rm -rf node_modules/react-native-gesture-handler
+        rm -rf node_modules/react-native-vector-icons
+        rm -rf node_modules/react-native-linear-gradient
+        rm -rf node_modules/react-native-permissions
+        rm -rf node_modules/react-native-safe-area-context
+        rm -rf node_modules/@react-native-async-storage
+        rm -rf node_modules/@react-native-community
+        
+        # Install ONLY React Native
+        npm install react react-native
 
     - name: Create complete Android configuration
       run: |
         cd android
         
-        # Backup and create root build.gradle
+        # Remove settings.gradle that includes problematic modules
+        rm -f settings.gradle
+        cat > settings.gradle << 'EOF'
+        rootProject.name = 'DeadTime'
+        apply from: file("../node_modules/@react-native-community/cli-platform-android/native_modules.gradle"); applyNativeModulesSettingsGradle(settings)
+        include ':app'
+        EOF
+        
+        # Create minimal root build.gradle
         cp build.gradle build.gradle.backup
         cat > build.gradle << 'EOF'
         buildscript {
@@ -75,13 +96,11 @@ jobs:
             repositories {
                 google()
                 mavenCentral()
-                jcenter() { content { includeModule("com.yqritc", "Android-ScalableVideoView") } }
-                maven { url "https://www.jitpack.io" }
             }
         }
         EOF
         
-        # Create complete app build.gradle
+        # Create minimal app build.gradle
         cd app
         cp build.gradle build.gradle.backup
         cat > build.gradle << 'EOF'
@@ -121,21 +140,18 @@ jobs:
                 }
                 release {
                     minifyEnabled false
-                    proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
                 }
             }
         }
         
         dependencies {
             implementation fileTree(dir: "libs", include: ["*.jar"])
-            implementation "com.facebook.react:react-native:0.72.6"
-            implementation "androidx.swiperefreshlayout:swiperefreshlayout:1.0.0"
             implementation "androidx.appcompat:appcompat:1.6.1"
-            implementation "com.facebook.soloader:soloader:0.10.5"
+            implementation "androidx.swiperefreshlayout:swiperefreshlayout:1.0.0"
         }
         EOF
         
-        # Create debug keystore in correct location
+        # Create debug keystore
         keytool -genkey -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
 
     - name: Initialize Gradle Wrapper
