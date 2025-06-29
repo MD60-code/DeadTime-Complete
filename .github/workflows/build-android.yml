@@ -49,7 +49,7 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-        - name: Download gradle-wrapper.jar if missing
+      - name: Download gradle-wrapper.jar if missing
         run: |
           if [ ! -f android/gradle/wrapper/gradle-wrapper.jar ]; then
             echo "Downloading gradle-wrapper.jar..."
