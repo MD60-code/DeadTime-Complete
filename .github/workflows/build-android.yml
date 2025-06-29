@@ -39,11 +39,19 @@ jobs:
         echo "ANDROID_NDK_HOME=$ANDROID_NDK_HOME" >> $GITHUB_ENV
         echo "NDK_HOME=$ANDROID_NDK_HOME" >> $GITHUB_ENV
 
+    - name: Setup Gradle
+      uses: gradle/gradle-build-action@v2
+      with:
+        gradle-version: 8.0
+
     - name: Install dependencies
       run: npm install
 
-    - name: Make gradlew executable
-      run: chmod +x android/gradlew
+    - name: Initialize Gradle Wrapper
+      run: |
+        cd android
+        gradle wrapper --gradle-version 8.0
+        chmod +x gradlew
 
     - name: Clean project
       run: |
