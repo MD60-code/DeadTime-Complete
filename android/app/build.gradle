@@ -3,10 +3,6 @@ apply plugin: "com.google.gms.google-services"
 
 import com.android.build.OutputFile
 
-react {
-    debuggableVariants = ["liveDebug", "stagingDebug"]
-}
-
 def enableSeparateBuildPerCPUArchitecture = false
 def enableProguardInReleaseBuilds = false
 def jscFlavor = 'org.webkit:android-jsc:+'
