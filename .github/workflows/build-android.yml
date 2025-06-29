@@ -47,21 +47,27 @@ jobs:
     - name: Install dependencies
       run: npm install
 
-    - name: Fix React Native version in gradle
+    - name: Fix React Native version completely
       run: |
         # Get exact RN version
         RN_VERSION=$(node -p "require('./package.json').dependencies['react-native']" | sed 's/[\^~]//g')
         echo "React Native version: $RN_VERSION"
         
-        # Fix android/app/build.gradle to use exact version
+        # Fix android/app/build.gradle
         cd android/app
         cp build.gradle build.gradle.backup
         
-        # Replace any "react-native:+" with exact version
+        # Replace ALL patterns that could cause version issues
         sed -i "s/com\.facebook\.react:react-native:\+/com.facebook.react:react-native:$RN_VERSION/g" build.gradle
+        sed -i "s/com\.facebook\.react:react-native:[0-9.]*\+/com.facebook.react:react-native:$RN_VERSION/g" build.gradle
         
-        # Also fix all library build.gradle files to use exact version
-        find ../../node_modules -name "build.gradle" -path "*/android/*" -exec sed -i "s/com\.facebook\.react:react-native:\+/com.facebook.react:react-native:$RN_VERSION/g" {} \;
+        # Fix ALL library build.gradle files in node_modules
+        find ../../node_modules -name "build.gradle" -path "*/android/*" -type f | while read file; do
+          echo "Fixing $file"
+          sed -i "s/com\.facebook\.react:react-native:\+/com.facebook.react:react-native:$RN_VERSION/g" "$file"
+          sed -i "s/com\.facebook\.react:react-native:[0-9.]*\+/com.facebook.react:react-native:$RN_VERSION/g" "$file"
+          sed -i "s/com\.facebook\.react:react-native:['\"][^'\"]*\+['\\"]/com.facebook.react:react-native:$RN_VERSION/g" "$file"
+        done
 
     - name: Fix Android configuration
       run: |
@@ -100,7 +106,7 @@ jobs:
         }
         EOF
         
-        # Disable Google Services plugin temporarily
+        # Disable Google Services plugin and Firebase temporarily
         cd app
         sed -i 's/apply plugin: .com.google.gms.google-services./\/\/ apply plugin: "com.google.gms.google-services"/' build.gradle
 
