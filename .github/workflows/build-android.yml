@@ -66,7 +66,7 @@ jobs:
           echo "Fixing $file"
           sed -i "s/com\.facebook\.react:react-native:\+/com.facebook.react:react-native:$RN_VERSION/g" "$file"
           sed -i "s/com\.facebook\.react:react-native:[0-9.]*\+/com.facebook.react:react-native:$RN_VERSION/g" "$file"
-          sed -i "s/com\.facebook\.react:react-native:['\"][^'\"]*\+['\\"]/com.facebook.react:react-native:$RN_VERSION/g" "$file"
+          sed -i 's/com\.facebook\.react:react-native:['"'"'][^'"'"'"]*\+['"'"'"]/com.facebook.react:react-native:'$RN_VERSION'/g' "$file"
         done
 
     - name: Fix Android configuration
