@@ -47,13 +47,13 @@ jobs:
     - name: Install dependencies
       run: npm install
 
-    - name: Fix Android build configuration
+    - name: Create minimal working build.gradle
       run: |
         cd android
         # Backup original build.gradle
         cp build.gradle build.gradle.backup
         
-        # Create simple working build.gradle
+        # Create minimal build.gradle that works
         cat > build.gradle << 'EOF'
         buildscript {
             ext {
@@ -62,18 +62,13 @@ jobs:
                 compileSdkVersion = 33
                 targetSdkVersion = 33
                 ndkVersion = "23.1.7779620"
-                kotlinVersion = "1.7.22"
             }
             repositories {
                 google()
                 mavenCentral()
-                maven { url "https://www.jitpack.io" }
-                gradlePluginPortal()
             }
             dependencies {
                 classpath("com.android.tools.build:gradle:7.3.1")
-                classpath("com.facebook.react:react-native-gradle-plugin:0.71.19")
-                classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlinVersion")
             }
         }
         
@@ -82,7 +77,6 @@ jobs:
                 google()
                 mavenCentral()
                 maven { url "https://www.jitpack.io" }
-                maven { url "https://repo1.maven.org/maven2" }
                 maven {
                     // All of React Native (JS, Obj-C sources, Android binaries) is installed from npm
                     url("$rootDir/../node_modules/react-native/android")
