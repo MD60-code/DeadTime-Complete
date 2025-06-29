@@ -47,31 +47,11 @@ jobs:
     - name: Install dependencies
       run: npm install
 
-    - name: Remove problematic libraries temporarily
-      run: |
-        echo "Creating minimal app for testing..."
-        
-        # Remove problematic imports from package.json temporarily
-        node -e "
-        const fs = require('fs');
-        const pkg = JSON.parse(fs.readFileSync('package.json'));
-        // Keep only essential dependencies
-        const essential = {
-          'react': pkg.dependencies.react,
-          'react-native': pkg.dependencies['react-native']
-        };
-        pkg.dependencies = essential;
-        fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2));
-        "
-        
-        # Reinstall only essential dependencies
-        npm install
-
-    - name: Fix Android configuration
+    - name: Fix Android configuration with correct plugin
       run: |
         cd android
         
-        # Minimal build.gradle
+        # Fix root build.gradle with React Native plugin
         cp build.gradle build.gradle.backup
         cat > build.gradle << 'EOF'
         buildscript {
@@ -88,6 +68,7 @@ jobs:
             }
             dependencies {
                 classpath("com.android.tools.build:gradle:7.3.1")
+                classpath("com.facebook.react:react-native-gradle-plugin")
             }
         }
         
@@ -95,25 +76,35 @@ jobs:
             repositories {
                 google()
                 mavenCentral()
+                maven {
+                    url("$rootDir/../node_modules/react-native/android")
+                }
             }
         }
         EOF
         
-        # Create minimal app build.gradle
+        # Fix app build.gradle with proper configuration
         cd app
         cp build.gradle build.gradle.backup
         cat > build.gradle << 'EOF'
         apply plugin: "com.android.application"
         apply plugin: "com.facebook.react"
         
+        import com.android.build.OutputFile
+        
         android {
             namespace "com.deadtime"
-            compileSdkVersion 33
+            compileSdkVersion rootProject.ext.compileSdkVersion
+            
+            compileOptions {
+                sourceCompatibility JavaVersion.VERSION_1_8
+                targetCompatibility JavaVersion.VERSION_1_8
+            }
             
             defaultConfig {
                 applicationId "com.deadtime"
-                minSdkVersion 21
-                targetSdkVersion 33
+                minSdkVersion rootProject.ext.minSdkVersion
+                targetSdkVersion rootProject.ext.targetSdkVersion
                 versionCode 1
                 versionName "1.0"
             }
@@ -131,6 +122,16 @@ jobs:
         
         dependencies {
             implementation("com.facebook.react:react-android")
+            implementation("androidx.swiperefreshlayout:swiperefreshlayout:1.0.0")
+            
+            debugImplementation("com.facebook.flipper:flipper:0.125.0")
+            debugImplementation("com.facebook.flipper:flipper-network-plugin:0.125.0")
+            
+            if (hermesEnabled.toBoolean()) {
+                implementation("com.facebook.react:hermes-android")
+            } else {
+                implementation jscFlavor
+            }
         }
         EOF
 
