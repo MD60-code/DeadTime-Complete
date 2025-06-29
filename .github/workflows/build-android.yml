@@ -42,7 +42,7 @@ jobs:
     - name: Setup Gradle
       uses: gradle/gradle-build-action@v2
       with:
-        gradle-version: 8.0
+        gradle-version: 8.0.2
 
     - name: Install dependencies
       run: npm install
@@ -50,7 +50,7 @@ jobs:
     - name: Initialize Gradle Wrapper
       run: |
         cd android
-        gradle wrapper --gradle-version 8.0
+        gradle wrapper --gradle-version 8.0.2
         chmod +x gradlew
 
     - name: Clean project
