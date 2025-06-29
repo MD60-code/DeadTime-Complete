@@ -47,48 +47,21 @@ jobs:
     - name: Install dependencies
       run: npm install
 
-    - name: Create React Native Maven repository
+    - name: Fix React Native version in gradle
       run: |
-        # Get React Native version from package.json
+        # Get exact RN version
         RN_VERSION=$(node -p "require('./package.json').dependencies['react-native']" | sed 's/[\^~]//g')
         echo "React Native version: $RN_VERSION"
         
-        # Create Maven directory structure
-        mkdir -p node_modules/react-native/android/com/facebook/react/react-native/$RN_VERSION
+        # Fix android/app/build.gradle to use exact version
+        cd android/app
+        cp build.gradle build.gradle.backup
         
-        # Create maven-metadata.xml
-        cat > node_modules/react-native/android/com/facebook/react/react-native/maven-metadata.xml << EOF
-        <?xml version="1.0" encoding="UTF-8"?>
-        <metadata>
-          <groupId>com.facebook.react</groupId>
-          <artifactId>react-native</artifactId>
-          <versioning>
-            <latest>$RN_VERSION</latest>
-            <release>$RN_VERSION</release>
-            <versions>
-              <version>$RN_VERSION</version>
-            </versions>
-            <lastUpdated>$(date +%Y%m%d%H%M%S)</lastUpdated>
-          </versioning>
-        </metadata>
-        EOF
+        # Replace any "react-native:+" with exact version
+        sed -i "s/com\.facebook\.react:react-native:\+/com.facebook.react:react-native:$RN_VERSION/g" build.gradle
         
-        # Create POM file
-        cat > node_modules/react-native/android/com/facebook/react/react-native/$RN_VERSION/react-native-$RN_VERSION.pom << EOF
-        <?xml version="1.0" encoding="UTF-8"?>
-        <project xmlns="http://maven.apache.org/POM/4.0.0"
-                 xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-                 xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
-          <modelVersion>4.0.0</modelVersion>
-          <groupId>com.facebook.react</groupId>
-          <artifactId>react-native</artifactId>
-          <version>$RN_VERSION</version>
-          <packaging>aar</packaging>
-        </project>
-        EOF
-        
-        # Create empty AAR file
-        touch node_modules/react-native/android/com/facebook/react/react-native/$RN_VERSION/react-native-$RN_VERSION.aar
+        # Also fix all library build.gradle files to use exact version
+        find ../../node_modules -name "build.gradle" -path "*/android/*" -exec sed -i "s/com\.facebook\.react:react-native:\+/com.facebook.react:react-native:$RN_VERSION/g" {} \;
 
     - name: Fix Android configuration
       run: |
@@ -129,7 +102,6 @@ jobs:
         
         # Disable Google Services plugin temporarily
         cd app
-        cp build.gradle build.gradle.backup
         sed -i 's/apply plugin: .com.google.gms.google-services./\/\/ apply plugin: "com.google.gms.google-services"/' build.gradle
 
     - name: Initialize Gradle Wrapper
