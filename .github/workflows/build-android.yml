@@ -106,7 +106,7 @@ sensorManager.registerListener(this, accelerometer, SensorManager.SENSOR_DELAY_N
                     .setContentText("€" + String.format("%.2f", content.earning) + " da " + content.title)
                     .setStyle(new NotificationCompat.BigTextStyle()
                         .bigText("🎉 Hai appena guadagnato €" + String.format("%.2f", content.earning) + 
-                                "!\n💳 Disponibile per prelievo\n🎯 " + content.description))
+                                "!\\n💳 Disponibile per prelievo\\n🎯 " + content.description))
                     .setPriority(NotificationCompat.PRIORITY_HIGH)
                     .setContentIntent(pendingIntent)
                     .setAutoCancel(true)
