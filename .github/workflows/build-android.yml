@@ -1,4 +1,4 @@
-name: Build Pure Android APK - FINAL SOLUTION
+name: DeadTime Step 1 - Detection Engine Android
 
 on:
   push:
@@ -39,49 +39,449 @@ jobs:
         echo "ANDROID_NDK_HOME=$ANDROID_NDK_HOME" >> $GITHUB_ENV
         echo "NDK_HOME=$ANDROID_NDK_HOME" >> $GITHUB_ENV
 
-    - name: 🔥 COMPLETE NUCLEAR CLEAN - Remove ALL React Native traces
+    - name: 🧹 Clean Previous Build
       run: |
-        # STEP 1: Remove ALL node_modules completely
         rm -rf node_modules
         rm -rf package-lock.json
-        rm -rf yarn.lock
+        rm -rf android/app/src/main/java/
+
+    - name: 🎯 Create DeadTime Detection Engine
+      run: |
+        cd android/app/src/main
         
-        # STEP 2: Create minimal package.json with ZERO React Native dependencies
-        cat > package.json << 'EOF'
-        {
-          "name": "deadtime",
-          "version": "1.0.0",
-          "description": "Pure Android App",
-          "main": "index.js",
-          "scripts": {
-            "test": "echo \"No tests\""
-          },
-          "dependencies": {},
-          "devDependencies": {}
+        # Create complete DeadTime app structure
+        mkdir -p java/com/deadtime
+        
+        # 1. CORE: Detection Service with GPS + Accelerometer
+        cat > java/com/deadtime/DeadTimeDetectionService.java << 'EOF'
+        package com.deadtime;
+        
+        import android.app.Service;
+        import android.content.Intent;
+        import android.content.Context;
+        import android.location.Location;
+        import android.location.LocationListener;
+        import android.location.LocationManager;
+        import android.hardware.Sensor;
+        import android.hardware.SensorEvent;
+        import android.hardware.SensorEventListener;
+        import android.hardware.SensorManager;
+        import android.os.IBinder;
+        import android.os.Handler;
+        import android.os.Looper;
+        import android.util.Log;
+        import java.util.ArrayList;
+        import java.util.List;
+        
+        public class DeadTimeDetectionService extends Service implements LocationListener, SensorEventListener {
+            private static final String TAG = "DeadTimeDetection";
+            private LocationManager locationManager;
+            private SensorManager sensorManager;
+            private Sensor accelerometer;
+            private Handler handler;
+            
+            // Detection parameters
+            private Location lastLocation;
+            private long lastLocationTime;
+            private List<Float> accelerometerValues = new ArrayList<>();
+            private boolean isInDeadTime = false;
+            private long deadTimeStartTime;
+            
+            // Thresholds for dead time detection
+            private static final float MOVEMENT_THRESHOLD = 2.0f;
+            private static final long LOCATION_STABLE_TIME = 300000; // 5 minutes
+            private static final int ACCELEROMETER_SAMPLES = 50;
+            
+            @Override
+            public void onCreate() {
+                super.onCreate();
+                Log.d(TAG, "🎯 DeadTime Detection Service Created");
+                
+                handler = new Handler(Looper.getMainLooper());
+                locationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
+                sensorManager = (SensorManager) getSystemService(Context.SENSOR_SERVICE);
+                accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
+                
+                startDetection();
+            }
+            
+            private void startDetection() {
+                try {
+                    // Start GPS tracking
+                    locationManager.requestLocationUpdates(
+                        LocationManager.GPS_PROVIDER, 
+                        30000, // 30 seconds
+                        10, // 10 meters
+                        this
+                    );
+                    
+                    // Start accelerometer tracking
+                    sensorManager.registerListener(this, accelerometer, SensorManager.SENSOR_DELAY_NORMAL);
+                    
+                    Log.d(TAG, "✅ Detection sensors started");
+                } catch (SecurityException e) {
+                    Log.e(TAG, "❌ Permission denied for location", e);
+                }
+            }
+            
+            @Override
+            public void onLocationChanged(Location location) {
+                Log.d(TAG, "📍 Location: " + location.getLatitude() + ", " + location.getLongitude());
+                
+                if (lastLocation != null) {
+                    float distance = lastLocation.distanceTo(location);
+                    long timeDiff = System.currentTimeMillis() - lastLocationTime;
+                    
+                    // Check if user is stationary
+                    if (distance < 50 && timeDiff > LOCATION_STABLE_TIME) {
+                        checkForDeadTime();
+                    }
+                }
+                
+                lastLocation = location;
+                lastLocationTime = System.currentTimeMillis();
+            }
+            
+            @Override
+            public void onSensorChanged(SensorEvent event) {
+                if (event.sensor.getType() == Sensor.TYPE_ACCELEROMETER) {
+                    float x = event.values[0];
+                    float y = event.values[1];
+                    float z = event.values[2];
+                    
+                    float acceleration = (float) Math.sqrt(x*x + y*y + z*z);
+                    accelerometerValues.add(acceleration);
+                    
+                    // Keep only recent samples
+                    if (accelerometerValues.size() > ACCELEROMETER_SAMPLES) {
+                        accelerometerValues.remove(0);
+                    }
+                    
+                    // Check movement pattern
+                    if (accelerometerValues.size() == ACCELEROMETER_SAMPLES) {
+                        checkMovementPattern();
+                    }
+                }
+            }
+            
+            private void checkMovementPattern() {
+                float avgAcceleration = 0;
+                for (float value : accelerometerValues) {
+                    avgAcceleration += value;
+                }
+                avgAcceleration /= accelerometerValues.size();
+                
+                // If very little movement detected
+                if (avgAcceleration < MOVEMENT_THRESHOLD) {
+                    Log.d(TAG, "🚶‍♂️ Minimal movement detected");
+                    checkForDeadTime();
+                }
+            }
+            
+            private void checkForDeadTime() {
+                if (!isInDeadTime) {
+                    isInDeadTime = true;
+                    deadTimeStartTime = System.currentTimeMillis();
+                    
+                    Log.d(TAG, "⏰ DEAD TIME DETECTED! Starting opportunity detection...");
+                    
+                    // Trigger opportunity notification
+                    Intent intent = new Intent(this, MainActivity.class);
+                    intent.putExtra("deadTimeDetected", true);
+                    intent.putExtra("location", lastLocation);
+                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    startActivity(intent);
+                }
+            }
+            
+            @Override
+            public IBinder onBind(Intent intent) {
+                return null;
+            }
+            
+            @Override
+            public void onAccuracyChanged(Sensor sensor, int accuracy) {}
+            
+            @Override
+            public void onDestroy() {
+                super.onDestroy();
+                if (locationManager != null) {
+                    locationManager.removeUpdates(this);
+                }
+                if (sensorManager != null) {
+                    sensorManager.unregisterListener(this);
+                }
+                Log.d(TAG, "🛑 Detection Service Destroyed");
+            }
         }
         EOF
         
-        # STEP 3: Create empty index.js to satisfy any checks
-        echo "// Pure Android Build" > index.js
+        # 2. MAIN ACTIVITY: DeadTime Dashboard
+        cat > java/com/deadtime/MainActivity.java << 'EOF'
+        package com.deadtime;
         
-        # STEP 4: Remove ALL React Native auto-detection files
-        rm -f babel.config.js
-        rm -f metro.config.js
-        rm -f react-native.config.js
-        rm -f .watchmanconfig
-        rm -rf .bundle
-        rm -rf .gradle
+        import androidx.appcompat.app.AppCompatActivity;
+        import androidx.core.app.ActivityCompat;
+        import androidx.core.content.ContextCompat;
+        import android.content.Intent;
+        import android.content.pm.PackageManager;
+        import android.location.Location;
+        import android.os.Bundle;
+        import android.util.Log;
+        import android.view.View;
+        import android.widget.TextView;
+        import android.widget.Button;
+        import android.widget.LinearLayout;
+        import android.widget.ScrollView;
+        import android.graphics.Color;
+        import android.Manifest;
+        
+        public class MainActivity extends AppCompatActivity {
+            private static final String TAG = "DeadTimeMain";
+            private static final int PERMISSION_REQUEST_CODE = 100;
+            
+            private TextView statusText;
+            private TextView earningsText;
+            private LinearLayout opportunitiesContainer;
+            private Button startDetectionButton;
+            private boolean detectionActive = false;
+            private double totalEarnings = 0.0;
+            
+            @Override
+            protected void onCreate(Bundle savedInstanceState) {
+                super.onCreate(savedInstanceState);
+                
+                Log.d(TAG, "🚀 DeadTime App Starting...");
+                
+                // Create dynamic UI
+                createDeadTimeUI();
+                
+                // Check for dead time detection from service
+                handleDeadTimeIntent();
+                
+                // Request permissions
+                requestNecessaryPermissions();
+            }
+            
+            private void createDeadTimeUI() {
+                ScrollView scrollView = new ScrollView(this);
+                LinearLayout mainLayout = new LinearLayout(this);
+                mainLayout.setOrientation(LinearLayout.VERTICAL);
+                mainLayout.setPadding(40, 60, 40, 40);
+                mainLayout.setBackgroundColor(Color.parseColor("#1a1a2e"));
+                
+                // Header
+                TextView headerText = new TextView(this);
+                headerText.setText("💰 DeadTime");
+                headerText.setTextSize(32);
+                headerText.setTextColor(Color.parseColor("#00d4aa"));
+                headerText.setPadding(0, 0, 0, 30);
+                mainLayout.addView(headerText);
+                
+                TextView subtitleText = new TextView(this);
+                subtitleText.setText("Trasforma l'attesa in opportunità");
+                subtitleText.setTextSize(16);
+                subtitleText.setTextColor(Color.parseColor("#a0a0a0"));
+                subtitleText.setPadding(0, 0, 0, 40);
+                mainLayout.addView(subtitleText);
+                
+                // Status Section
+                statusText = new TextView(this);
+                statusText.setText("🔍 Pronto per rilevare tempo morto...");
+                statusText.setTextSize(18);
+                statusText.setTextColor(Color.WHITE);
+                statusText.setPadding(20, 20, 20, 20);
+                statusText.setBackgroundColor(Color.parseColor("#16213e"));
+                mainLayout.addView(statusText);
+                
+                // Earnings Section
+                earningsText = new TextView(this);
+                earningsText.setText("💰 Guadagni totali: €" + String.format("%.2f", totalEarnings));
+                earningsText.setTextSize(20);
+                earningsText.setTextColor(Color.parseColor("#00d4aa"));
+                earningsText.setPadding(20, 30, 20, 20);
+                mainLayout.addView(earningsText);
+                
+                // Start Detection Button
+                startDetectionButton = new Button(this);
+                startDetectionButton.setText("🎯 Avvia Rilevamento");
+                startDetectionButton.setTextSize(18);
+                startDetectionButton.setTextColor(Color.WHITE);
+                startDetectionButton.setBackgroundColor(Color.parseColor("#00d4aa"));
+                startDetectionButton.setPadding(30, 20, 30, 20);
+                startDetectionButton.setOnClickListener(new View.OnClickListener() {
+                    @Override
+                    public void onClick(View v) {
+                        toggleDetection();
+                    }
+                });
+                mainLayout.addView(startDetectionButton);
+                
+                // Opportunities Container
+                TextView opportunitiesTitle = new TextView(this);
+                opportunitiesTitle.setText("🎁 Opportunità Disponibili");
+                opportunitiesTitle.setTextSize(20);
+                opportunitiesTitle.setTextColor(Color.WHITE);
+                opportunitiesTitle.setPadding(0, 40, 0, 20);
+                mainLayout.addView(opportunitiesTitle);
+                
+                opportunitiesContainer = new LinearLayout(this);
+                opportunitiesContainer.setOrientation(LinearLayout.VERTICAL);
+                mainLayout.addView(opportunitiesContainer);
+                
+                scrollView.addView(mainLayout);
+                setContentView(scrollView);
+                
+                // Add sample opportunities
+                addSampleOpportunities();
+            }
+            
+            private void addSampleOpportunities() {
+                addOpportunityCard("📺 Guarda Video Prodotto", "€2.50", "2 minuti", "#4a90e2");
+                addOpportunityCard("📋 Completa Sondaggio", "€1.80", "3 minuti", "#7b68ee");
+                addOpportunityCard("🎮 Micro-Task Gamificato", "€3.20", "5 minuti", "#32cd32");
+                addOpportunityCard("🛍️ Demo Prodotto Locale", "€4.50", "4 minuti", "#ff6347");
+            }
+            
+            private void addOpportunityCard(String title, String earning, String duration, String color) {
+                LinearLayout card = new LinearLayout(this);
+                card.setOrientation(LinearLayout.VERTICAL);
+                card.setPadding(25, 20, 25, 20);
+                card.setBackgroundColor(Color.parseColor(color));
+                
+                LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                );
+                params.setMargins(0, 0, 0, 15);
+                card.setLayoutParams(params);
+                
+                TextView titleView = new TextView(this);
+                titleView.setText(title);
+                titleView.setTextSize(16);
+                titleView.setTextColor(Color.WHITE);
+                card.addView(titleView);
+                
+                TextView detailsView = new TextView(this);
+                detailsView.setText(earning + " • " + duration);
+                detailsView.setTextSize(14);
+                detailsView.setTextColor(Color.parseColor("#f0f0f0"));
+                detailsView.setPadding(0, 5, 0, 0);
+                card.addView(detailsView);
+                
+                opportunitiesContainer.addView(card);
+            }
+            
+            private void toggleDetection() {
+                if (!detectionActive) {
+                    // Start detection service
+                    Intent serviceIntent = new Intent(this, DeadTimeDetectionService.class);
+                    startService(serviceIntent);
+                    
+                    detectionActive = true;
+                    startDetectionButton.setText("⏹️ Ferma Rilevamento");
+                    startDetectionButton.setBackgroundColor(Color.parseColor("#ff4757"));
+                    statusText.setText("🟢 Rilevamento ATTIVO - In attesa di tempo morto...");
+                    
+                    Log.d(TAG, "✅ Detection service started");
+                } else {
+                    // Stop detection service
+                    Intent serviceIntent = new Intent(this, DeadTimeDetectionService.class);
+                    stopService(serviceIntent);
+                    
+                    detectionActive = false;
+                    startDetectionButton.setText("🎯 Avvia Rilevamento");
+                    startDetectionButton.setBackgroundColor(Color.parseColor("#00d4aa"));
+                    statusText.setText("🔍 Rilevamento fermo - Premi per attivare");
+                    
+                    Log.d(TAG, "🛑 Detection service stopped");
+                }
+            }
+            
+            private void handleDeadTimeIntent() {
+                Intent intent = getIntent();
+                if (intent.getBooleanExtra("deadTimeDetected", false)) {
+                    Location location = intent.getParcelableExtra("location");
+                    
+                    statusText.setText("🎯 TEMPO MORTO RILEVATO! Opportunità disponibili:");
+                    statusText.setBackgroundColor(Color.parseColor("#00d4aa"));
+                    
+                    // Simulate earning from detected opportunity
+                    double earning = 2.50 + (Math.random() * 3.0); // €2.50-5.50
+                    totalEarnings += earning;
+                    earningsText.setText("💰 Guadagni totali: €" + String.format("%.2f", totalEarnings));
+                    
+                    Log.d(TAG, "💰 Opportunity triggered! Earning: €" + String.format("%.2f", earning));
+                }
+            }
+            
+            private void requestNecessaryPermissions() {
+                String[] permissions = {
+                    Manifest.permission.ACCESS_FINE_LOCATION,
+                    Manifest.permission.ACCESS_COARSE_LOCATION,
+                    Manifest.permission.WRITE_EXTERNAL_STORAGE
+                };
+                
+                boolean needsPermission = false;
+                for (String permission : permissions) {
+                    if (ContextCompat.checkSelfPermission(this, permission) != PackageManager.PERMISSION_GRANTED) {
+                        needsPermission = true;
+                        break;
+                    }
+                }
+                
+                if (needsPermission) {
+                    ActivityCompat.requestPermissions(this, permissions, PERMISSION_REQUEST_CODE);
+                }
+            }
+            
+            @Override
+            public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+                super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+                if (requestCode == PERMISSION_REQUEST_CODE) {
+                    boolean allGranted = true;
+                    for (int result : grantResults) {
+                        if (result != PackageManager.PERMISSION_GRANTED) {
+                            allGranted = false;
+                            break;
+                        }
+                    }
+                    
+                    if (allGranted) {
+                        statusText.setText("✅ Permessi concessi - Pronto per il rilevamento!");
+                        Log.d(TAG, "✅ All permissions granted");
+                    } else {
+                        statusText.setText("⚠️ Permessi necessari per il funzionamento");
+                        Log.w(TAG, "⚠️ Some permissions denied");
+                    }
+                }
+            }
+        }
+        EOF
+        
+        # 3. APPLICATION CLASS
+        cat > java/com/deadtime/MainApplication.java << 'EOF'
+        package com.deadtime;
+        
+        import android.app.Application;
+        import android.util.Log;
+        
+        public class MainApplication extends Application {
+            private static final String TAG = "DeadTimeApp";
+            
+            @Override
+            public void onCreate() {
+                super.onCreate();
+                Log.d(TAG, "🚀 DeadTime Application Started");
+            }
+        }
+        EOF
 
-    - name: 🎯 Create PURE Android Project Structure
+    - name: 📱 Create Android Configuration
       run: |
         cd android
         
-        # STEP 1: Backup existing files
-        cp build.gradle build.gradle.original.backup || true
-        cp settings.gradle settings.gradle.original.backup || true
-        cp app/build.gradle app/build.gradle.original.backup || true
-        
-        # STEP 2: Create ROOT build.gradle WITHOUT any React Native references
+        # Root build.gradle
         cat > build.gradle << 'EOF'
         buildscript {
             ext {
@@ -89,6 +489,7 @@ jobs:
                 minSdkVersion = 21
                 compileSdkVersion = 33
                 targetSdkVersion = 33
+                ndkVersion = "23.1.7779620"
             }
             repositories {
                 google()
@@ -111,13 +512,13 @@ jobs:
         }
         EOF
         
-        # STEP 3: Create settings.gradle WITHOUT React Native modules
+        # settings.gradle
         cat > settings.gradle << 'EOF'
         rootProject.name = 'DeadTime'
         include ':app'
         EOF
         
-        # STEP 4: Create app/build.gradle as PURE Android app
+        # app/build.gradle
         cd app
         cat > build.gradle << 'EOF'
         apply plugin: "com.android.application"
@@ -137,7 +538,7 @@ jobs:
                 minSdkVersion 21
                 targetSdkVersion 33
                 versionCode 1
-                versionName "1.0"
+                versionName "1.0.0"
                 testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
             }
             
@@ -166,57 +567,41 @@ jobs:
             implementation 'androidx.appcompat:appcompat:1.6.1'
             implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
             implementation 'com.google.android.material:material:1.8.0'
+            implementation 'androidx.core:core:1.9.0'
             testImplementation 'junit:junit:4.13.2'
             androidTestImplementation 'androidx.test.ext:junit:1.1.5'
             androidTestImplementation 'androidx.test.espresso:espresso-core:3.5.1'
         }
         EOF
 
-    - name: 📱 Create Basic Android App Structure
+    - name: 📲 Create Android Manifest & Resources
       run: |
         cd android/app/src/main
         
-        # 🔥 ELIMINATE ALL EXISTING JAVA FILES FIRST
-        rm -rf java/
-        
-        # Create MainActivity.java
-        mkdir -p java/com/deadtime
-        cat > java/com/deadtime/MainActivity.java << 'EOF'
-        package com.deadtime;
-        
-        import androidx.appcompat.app.AppCompatActivity;
-        import android.os.Bundle;
-        import android.widget.TextView;
-        
-        public class MainActivity extends AppCompatActivity {
-            @Override
-            protected void onCreate(Bundle savedInstanceState) {
-                super.onCreate(savedInstanceState);
-                
-                // Create simple layout programmatically
-                TextView textView = new TextView(this);
-                textView.setText("🎉 DeadTime Android App is WORKING! 🎉");
-                textView.setTextSize(24);
-                textView.setPadding(50, 200, 50, 50);
-                textView.setTextAlignment(TextView.TEXT_ALIGNMENT_CENTER);
-                
-                setContentView(textView);
-            }
-        }
-        EOF
-        
-        # Update AndroidManifest.xml WITHOUT icon references
+        # AndroidManifest.xml with all permissions
         cat > AndroidManifest.xml << 'EOF'
         <manifest xmlns:android="http://schemas.android.com/apk/res/android"
             package="com.deadtime">
 
+            <!-- DEADTIME CORE PERMISSIONS -->
+            <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+            <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+            <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
             <uses-permission android:name="android.permission.INTERNET" />
+            <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+            <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+            
+            <!-- HARDWARE ACCESS -->
+            <uses-feature android:name="android.hardware.location" android:required="true" />
+            <uses-feature android:name="android.hardware.sensor.accelerometer" android:required="true" />
 
             <application
               android:name=".MainApplication"
               android:allowBackup="false"
               android:theme="@style/AppTheme"
               android:label="@string/app_name">
+              
+              <!-- MAIN ACTIVITY -->
               <activity
                 android:name=".MainActivity"
                 android:exported="true"
@@ -226,25 +611,18 @@ jobs:
                     <category android:name="android.intent.category.LAUNCHER" />
                 </intent-filter>
               </activity>
+              
+              <!-- DETECTION SERVICE -->
+              <service 
+                android:name=".DeadTimeDetectionService"
+                android:enabled="true"
+                android:exported="false" />
+              
             </application>
         </manifest>
         EOF
         
-        # Create MainApplication.java
-        cat > java/com/deadtime/MainApplication.java << 'EOF'
-        package com.deadtime;
-        
-        import android.app.Application;
-        
-        public class MainApplication extends Application {
-            @Override
-            public void onCreate() {
-                super.onCreate();
-            }
-        }
-        EOF
-        
-        # Create basic resources
+        # Create resources
         mkdir -p res/values
         cat > res/values/strings.xml << 'EOF'
         <resources>
@@ -255,36 +633,14 @@ jobs:
         cat > res/values/styles.xml << 'EOF'
         <resources>
             <style name="AppTheme" parent="Theme.AppCompat.Light.DarkActionBar">
-                <item name="android:textColor">#000000</item>
+                <item name="android:statusBarColor">#1a1a2e</item>
+                <item name="android:windowBackground">#1a1a2e</item>
+                <item name="colorPrimary">#00d4aa</item>
+                <item name="colorPrimaryDark">#00a084</item>
+                <item name="colorAccent">#00d4aa</item>
             </style>
         </resources>
         EOF
-        
-        # 🎯 CREATE APP ICONS - This was the missing piece!
-        mkdir -p res/mipmap-mdpi res/mipmap-hdpi res/mipmap-xhdpi res/mipmap-xxhdpi res/mipmap-xxxhdpi
-        
-        # Create a simple colored square as app icon (48x48 pixels in different densities)
-        # Using base64 encoded PNG for a simple purple square icon
-        
-        # mdpi (48x48)
-        echo "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChAGA60e6kgAAAABJRU5ErkJggg==" | base64 -d > res/mipmap-mdpi/ic_launcher.png
-        cp res/mipmap-mdpi/ic_launcher.png res/mipmap-mdpi/ic_launcher_round.png
-        
-        # hdpi (72x72)  
-        cp res/mipmap-mdpi/ic_launcher.png res/mipmap-hdpi/ic_launcher.png
-        cp res/mipmap-mdpi/ic_launcher.png res/mipmap-hdpi/ic_launcher_round.png
-        
-        # xhdpi (96x96)
-        cp res/mipmap-mdpi/ic_launcher.png res/mipmap-xhdpi/ic_launcher.png  
-        cp res/mipmap-mdpi/ic_launcher.png res/mipmap-xhdpi/ic_launcher_round.png
-        
-        # xxhdpi (144x144)
-        cp res/mipmap-mdpi/ic_launcher.png res/mipmap-xxhdpi/ic_launcher.png
-        cp res/mipmap-mdpi/ic_launcher.png res/mipmap-xxhdpi/ic_launcher_round.png
-        
-        # xxxhdpi (192x192) 
-        cp res/mipmap-mdpi/ic_launcher.png res/mipmap-xxxhdpi/ic_launcher.png
-        cp res/mipmap-mdpi/ic_launcher.png res/mipmap-xxxhdpi/ic_launcher_round.png
 
     - name: 🔑 Create Debug Keystore
       run: |
@@ -302,7 +658,7 @@ jobs:
         cd android
         ./gradlew clean
 
-    - name: 🚀 Build Pure Android APK
+    - name: 🚀 Build DeadTime Detection Engine
       run: |
         cd android
         ./gradlew assembleDebug --stacktrace --no-daemon
@@ -311,17 +667,16 @@ jobs:
       run: |
         cd android
         if [ -f "app/build/outputs/apk/debug/app-debug.apk" ]; then
-          echo "🎉 SUCCESS! APK created successfully!"
+          echo "🎉 SUCCESS! DeadTime Detection Engine APK created!"
           ls -la app/build/outputs/apk/debug/
           file app/build/outputs/apk/debug/app-debug.apk
         else
           echo "❌ APK not found!"
-          find . -name "*.apk" -type f
           exit 1
         fi
 
-    - name: 📦 Upload Pure Android APK
+    - name: 📦 Upload DeadTime Detection APK
       uses: actions/upload-artifact@v4
       with:
-        name: deadtime-pure-android-apk
+        name: deadtime-detection-engine-apk
         path: android/app/build/outputs/apk/debug/app-debug.apk
