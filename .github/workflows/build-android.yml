@@ -1,4 +1,392 @@
-- name: 🔧 Create MainApplication
+private void createControls(LinearLayout parent) {
+                TextView sectionTitle = new TextView(this);
+                sectionTitle.setText("🎯 AI MONEY DETECTION");
+                sectionTitle.setTextSize(22);
+                sectionTitle.setTextColor(Color.WHITE);
+                sectionTitle.setTypeface(sectionTitle.getTypeface(), Typeface.BOLD);
+                sectionTitle.setPadding(0, 30, 0, 15);
+                parent.addView(sectionTitle);
+                
+                statusText = new TextView(this);
+                statusText.setText("🟢 Ready to detect money-making opportunities...");
+                statusText.setTextSize(16);
+                statusText.setTextColor(Color.WHITE);
+                statusText.setPadding(25, 20, 25, 20);
+                statusText.setBackgroundColor(Color.parseColor("#16213e"));
+                parent.addView(statusText);
+                
+                startDetectionButton = new Button(this);
+                startDetectionButton.setText("🚀 START MONEY DETECTION");
+                startDetectionButton.setTextSize(18);
+                startDetectionButton.setTextColor(Color.WHITE);
+                startDetectionButton.setBackgroundColor(Color.parseColor("#00ff88"));
+                startDetectionButton.setPadding(30, 25, 30, 25);
+                
+                LinearLayout.LayoutParams buttonParams = new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+                buttonParams.setMargins(0, 15, 0, 0);
+                startDetectionButton.setLayoutParams(buttonParams);
+                
+                startDetectionButton.setOnClickListener(v -> toggleMoneyDetection());
+                parent.addView(startDetectionButton);
+            }
+            
+            private void createOpportunities(LinearLayout parent) {
+                TextView sectionTitle = new TextView(this);
+                sectionTitle.setText("💎 PREMIUM OPPORTUNITIES");
+                sectionTitle.setTextSize(22);
+                sectionTitle.setTextColor(Color.WHITE);
+                sectionTitle.setTypeface(sectionTitle.getTypeface(), Typeface.BOLD);
+                sectionTitle.setPadding(0, 30, 0, 15);
+                parent.addView(sectionTitle);
+                
+                TextView subtitle = new TextView(this);
+                subtitle.setText("Global brand partnerships • Instant payouts");
+                subtitle.setTextSize(14);
+                subtitle.setTextColor(Color.parseColor("#888888"));
+                subtitle.setPadding(0, 0, 0, 15);
+                parent.addView(subtitle);
+                
+                opportunitiesContainer = new LinearLayout(this);
+                opportunitiesContainer.setOrientation(LinearLayout.VERTICAL);
+                parent.addView(opportunitiesContainer);
+            }
+            
+            private void createTransactions(LinearLayout parent) {
+                TextView sectionTitle = new TextView(this);
+                sectionTitle.setText("📊 RECENT EARNINGS");
+                sectionTitle.setTextSize(20);
+                sectionTitle.setTextColor(Color.WHITE);
+                sectionTitle.setTypeface(sectionTitle.getTypeface(), Typeface.BOLD);
+                sectionTitle.setPadding(0, 30, 0, 15);
+                parent.addView(sectionTitle);
+                
+                transactionsContainer = new LinearLayout(this);
+                transactionsContainer.setOrientation(LinearLayout.VERTICAL);
+                parent.addView(transactionsContainer);
+            }
+            
+            private void createFooter(LinearLayout parent) {
+                TextView appVersionText = new TextView(this);
+                appVersionText.setText("DeadTime v4.0 Production • Real Money System Active");
+                appVersionText.setTextSize(12);
+                appVersionText.setTextColor(Color.parseColor("#555555"));
+                appVersionText.setPadding(0, 30, 0, 0);
+                parent.addView(appVersionText);
+            }
+            
+            private void refreshContent() {
+                opportunitiesContainer.removeAllViews();
+                List<ContentOpportunity> content = contentManager.getPersonalizedContent(null, 6);
+                
+                for (ContentOpportunity opportunity : content) {
+                    addPremiumOpportunityCard(opportunity);
+                }
+                
+                updateTransactionHistory();
+            }
+            
+            private void addPremiumOpportunityCard(ContentOpportunity opportunity) {
+                LinearLayout card = new LinearLayout(this);
+                card.setOrientation(LinearLayout.VERTICAL);
+                card.setPadding(25, 20, 25, 20);
+                card.setBackgroundColor(Color.parseColor(opportunity.color));
+                
+                LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+                params.setMargins(0, 0, 0, 15);
+                card.setLayoutParams(params);
+                
+                TextView titleView = new TextView(this);
+                titleView.setText("💎 " + opportunity.title);
+                titleView.setTextSize(17);
+                titleView.setTextColor(Color.WHITE);
+                titleView.setTypeface(titleView.getTypeface(), Typeface.BOLD);
+                card.addView(titleView);
+                
+                TextView descView = new TextView(this);
+                descView.setText(opportunity.description);
+                descView.setTextSize(14);
+                descView.setTextColor(Color.parseColor("#f0f0f0"));
+                descView.setPadding(0, 8, 0, 12);
+                card.addView(descView);
+                
+                LinearLayout metaLayout = new LinearLayout(this);
+                metaLayout.setOrientation(LinearLayout.HORIZONTAL);
+                
+                TextView earningView = new TextView(this);
+                earningView.setText("💰 " + opportunity.getFormattedEarning());
+                earningView.setTextSize(16);
+                earningView.setTextColor(Color.WHITE);
+                earningView.setTypeface(earningView.getTypeface(), Typeface.BOLD);
+                metaLayout.addView(earningView);
+                
+                TextView durationView = new TextView(this);
+                durationView.setText(" • ⏱️ " + opportunity.getFormattedDuration());
+                durationView.setTextSize(14);
+                durationView.setTextColor(Color.parseColor("#f0f0f0"));
+                metaLayout.addView(durationView);
+                
+                card.addView(metaLayout);
+                
+                card.setOnClickListener(v -> earnMoneyFromOpportunity(opportunity));
+                
+                opportunitiesContainer.addView(card);
+            }
+            
+            private void earnMoneyFromOpportunity(ContentOpportunity opportunity) {
+                boolean completed = contentManager.completeOpportunity(opportunity);
+                if (completed) {
+                    sessionEarnings += opportunity.earning;
+                    updateStats();
+                    refreshContent();
+                    
+                    statusText.setText("💰 EARNED: " + opportunity.getFormattedEarning() + 
+                                     " from " + opportunity.title);
+                    statusText.setBackgroundColor(Color.parseColor("#00ff88"));
+                    
+                    Log.d(TAG, "💰 MONEY EARNED: " + opportunity.getFormattedEarning());
+                }
+            }
+            
+            private void updateTransactionHistory() {
+                transactionsContainer.removeAllViews();
+                List<Transaction> transactions = paymentManager.getRecentTransactions(5);
+                
+                if (transactions.isEmpty()) {
+                    TextView noTransactions = new TextView(this);
+                    noTransactions.setText("No earnings yet. Start detecting opportunities!");
+                    noTransactions.setTextSize(14);
+                    noTransactions.setTextColor(Color.parseColor("#888888"));
+                    noTransactions.setPadding(20, 15, 20, 15);
+                    transactionsContainer.addView(noTransactions);
+                    return;
+                }
+                
+                for (Transaction transaction : transactions) {
+                    addTransactionCard(transaction);
+                }
+            }
+            
+            private void addTransactionCard(Transaction transaction) {
+                LinearLayout card = new LinearLayout(this);
+                card.setOrientation(LinearLayout.HORIZONTAL);
+                card.setPadding(20, 15, 20, 15);
+                card.setBackgroundColor(Color.parseColor("#2c3e50"));
+                
+                LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+                params.setMargins(0, 0, 0, 10);
+                card.setLayoutParams(params);
+                
+                LinearLayout leftLayout = new LinearLayout(this);
+                leftLayout.setOrientation(LinearLayout.VERTICAL);
+                leftLayout.setLayoutParams(new LinearLayout.LayoutParams(0, 
+                    LinearLayout.LayoutParams.WRAP_CONTENT, 1.0f));
+                
+                TextView descView = new TextView(this);
+                descView.setText(transaction.description);
+                descView.setTextSize(14);
+                descView.setTextColor(Color.WHITE);
+                leftLayout.addView(descView);
+                
+                TextView timeView = new TextView(this);
+                timeView.setText(transaction.timestamp);
+                timeView.setTextSize(12);
+                timeView.setTextColor(Color.parseColor("#95a5a6"));
+                timeView.setPadding(0, 4, 0, 0);
+                leftLayout.addView(timeView);
+                
+                TextView amountView = new TextView(this);
+                amountView.setText("+€" + String.format("%.2f", transaction.amount));
+                amountView.setTextSize(16);
+                amountView.setTextColor(Color.parseColor("#00ff88"));
+                amountView.setTypeface(amountView.getTypeface(), Typeface.BOLD);
+                
+                card.addView(leftLayout);
+                card.addView(amountView);
+                transactionsContainer.addView(card);
+            }
+            
+            private void updateStats() {
+                PaymentStats stats = paymentManager.getPaymentStats();
+                
+                totalEarningsText.setText("€" + String.format("%.2f", stats.totalEarnings));
+                double available = stats.totalEarnings - stats.pendingPayouts;
+                availableBalanceText.setText("€" + String.format("%.2f", available));
+                sessionEarningsText.setText("€" + String.format("%.2f", sessionEarnings));
+                
+                withdrawButton.setEnabled(paymentManager.canWithdraw());
+                withdrawButton.setBackgroundColor(Color.parseColor(
+                    paymentManager.canWithdraw() ? "#27ae60" : "#7f8c8d"));
+            }
+            
+            private void showWithdrawalCenter() {
+                AlertDialog.Builder builder = new AlertDialog.Builder(this);
+                builder.setTitle("💳 Withdrawal Center");
+                
+                LinearLayout layout = new LinearLayout(this);
+                layout.setOrientation(LinearLayout.VERTICAL);
+                layout.setPadding(40, 20, 40, 20);
+                
+                TextView infoText = new TextView(this);
+                double available = paymentManager.getTotalEarnings() - paymentManager.getPendingPayouts();
+                infoText.setText("Available for withdrawal: €" + String.format("%.2f", available) + 
+                               "\nMinimum withdrawal: €5.00\nProcessing time: 24-48 hours");
+                infoText.setTextSize(16);
+                infoText.setPadding(0, 0, 0, 20);
+                layout.addView(infoText);
+                
+                EditText methodInput = new EditText(this);
+                methodInput.setHint("Payment method (PayPal, Bank Transfer)");
+                methodInput.setText("PayPal");
+                methodInput.setPadding(15, 15, 15, 15);
+                layout.addView(methodInput);
+                
+                EditText accountInput = new EditText(this);
+                accountInput.setHint("PayPal email or IBAN");
+                accountInput.setPadding(15, 15, 15, 15);
+                layout.addView(accountInput);
+                
+                builder.setView(layout);
+                builder.setPositiveButton("💸 WITHDRAW NOW", (dialog, which) -> {
+                    String method = methodInput.getText().toString().trim();
+                    String account = accountInput.getText().toString().trim();
+                    
+                    if (!method.isEmpty() && !account.isEmpty()) {
+                        WithdrawalResult result = paymentManager.requestWithdrawal(method, account);
+                        
+                        statusText.setText(result.success ? "✅ " + result.message : "❌ " + result.message);
+                        statusText.setBackgroundColor(Color.parseColor(result.success ? "#00ff88" : "#e74c3c"));
+                        
+                        if (result.success) {
+                            updateStats();
+                            Log.d(TAG, "💸 WITHDRAWAL PROCESSED: €" + String.format("%.2f", result.amount));
+                        }
+                    } else {
+                        statusText.setText("❌ Please enter payment method and account details");
+                        statusText.setBackgroundColor(Color.parseColor("#e74c3c"));
+                    }
+                });
+                builder.setNegativeButton("Cancel", null);
+                builder.show();
+            }
+            
+            private void toggleMoneyDetection() {
+                if (!detectionActive) {
+                    detectionActive = true;
+                    startDetectionButton.setText("⏹️ STOP DETECTION");
+                    startDetectionButton.setBackgroundColor(Color.parseColor("#e74c3c"));
+                    statusText.setText("🟢 AI MONEY DETECTION ACTIVE - Scanning for opportunities...");
+                    statusText.setBackgroundColor(Color.parseColor("#00ff88"));
+                    
+                    startAutomaticEarnings();
+                    Log.d(TAG, "🎯 MONEY DETECTION STARTED");
+                } else {
+                    detectionActive = false;
+                    startDetectionButton.setText("🚀 START MONEY DETECTION");
+                    startDetectionButton.setBackgroundColor(Color.parseColor("#00ff88"));
+                    statusText.setText("🔍 Money detection stopped - Press to reactivate");
+                    statusText.setBackgroundColor(Color.parseColor("#16213e"));
+                    
+                    Log.d(TAG, "🛑 MONEY DETECTION STOPPED");
+                }
+            }
+            
+            private void startAutomaticEarnings() {
+                if (detectionActive) {
+                    new Thread(() -> {
+                        try {
+                            Thread.sleep(45000);
+                            
+                            if (detectionActive) {
+                                runOnUiThread(() -> {
+                                    ContentOpportunity highValue = contentManager.getHighValueContent(null);
+                                    if (highValue != null) {
+                                        boolean completed = contentManager.completeOpportunity(highValue);
+                                        if (completed) {
+                                            sessionEarnings += highValue.earning;
+                                            updateStats();
+                                            refreshContent();
+                                            
+                                            statusText.setText("💰 AUTO-DETECTED: " + highValue.getFormattedEarning() + 
+                                                             " from " + highValue.title);
+                                            statusText.setBackgroundColor(Color.parseColor("#00ff88"));
+                                            
+                                            Log.d(TAG, "🤖 AUTO-EARNED: " + highValue.getFormattedEarning());
+                                        }
+                                    }
+                                    
+                                    startAutomaticEarnings();
+                                });
+                            }
+                        } catch (InterruptedException e) {
+                            Log.e(TAG, "Detection interrupted", e);
+                        }
+                    }).start();
+                }
+            }
+            
+            private void requestPermissions() {
+                String[] permissions = {
+                    Manifest.permission.ACCESS_FINE_LOCATION,
+                    Manifest.permission.ACCESS_COARSE_LOCATION
+                };
+                
+                boolean needsPermission = false;
+                for (String permission : permissions) {
+                    if (ContextCompat.checkSelfPermission(this, permission) != PackageManager.PERMISSION_GRANTED) {
+                        needsPermission = true;
+                        break;
+                    }
+                }
+                
+                if (needsPermission) {
+                    ActivityCompat.requestPermissions(this, permissions, PERMISSION_REQUEST_CODE);
+                }
+            }
+            
+            @Override
+            public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+                super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+                if (requestCode == PERMISSION_REQUEST_CODE) {
+                    boolean allGranted = true;
+                    for (int result : grantResults) {
+                        if (result != PackageManager.PERMISSION_GRANTED) {
+                            allGranted = false;
+                            break;
+                        }
+                    }
+                    
+                    if (allGranted) {
+                        statusText.setText("✅ Location permissions granted - Enhanced geo-targeting enabled!");
+                        statusText.setBackgroundColor(Color.parseColor("#00ff88"));
+                        Log.d(TAG, "✅ All permissions granted - GEO-TARGETING ACTIVE");
+                    } else {
+                        statusText.setText("⚠️ Limited permissions - Basic mode only");
+                        statusText.setBackgroundColor(Color.parseColor("#f39c12"));
+                        Log.w(TAG, "⚠️ Limited permissions");
+                    }
+                }
+            }
+            
+            @Override
+            protected void onResume() {
+                super.onResume();
+                updateStats();
+                refreshContent();
+                Log.d(TAG, "📱 App resumed - Refreshing money opportunities");
+            }
+            
+            @Override
+            protected void onPause() {
+                super.onPause();
+                Log.d(TAG, "📱 App paused - Detection continues in background");
+            }
+        }
+        MAEOF3
+
+    - name: 🔧 Create MainApplication
       run: |
         cat > android/app/src/main/java/com/deadtime/MainApplication.java << 'APPEOF'
         package com.deadtime;
@@ -131,6 +519,7 @@
         cd android/app/src/main
         
         cat > AndroidManifest.xml << 'MANIFESTEOF'
+        <?xml version="1.0" encoding="utf-8"?>
         <manifest xmlns:android="http://schemas.android.com/apk/res/android"
             package="com.deadtime">
 
@@ -166,6 +555,7 @@
         mkdir -p res/values res/mipmap-mdpi res/mipmap-hdpi res/mipmap-xhdpi res/mipmap-xxhdpi res/mipmap-xxxhdpi
         
         cat > res/values/strings.xml << 'STRINGSEOF'
+        <?xml version="1.0" encoding="utf-8"?>
         <resources>
             <string name="app_name">DeadTime</string>
             <string name="app_description">Transform Dead Time Into Digital Gold</string>
@@ -173,6 +563,7 @@
         STRINGSEOF
         
         cat > res/values/styles.xml << 'STYLESEOF'
+        <?xml version="1.0" encoding="utf-8"?>
         <resources>
             <style name="DeadTimeProductionTheme" parent="Theme.AppCompat.Light.NoActionBar">
                 <item name="android:statusBarColor">#0a0a1a</item>
@@ -192,18 +583,6 @@
             </style>
         </resources>
         STYLESEOF
-        
-        # Create app icons
-        echo "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChAGA60e6kgAAAABJRU5ErkJggg==" | base64 -d > res/mipmap-mdpi/ic_launcher.png
-        cp res/mipmap-mdpi/ic_launcher.png res/mipmap-mdpi/ic_launcher_round.png
-        cp res/mipmap-mdpi/ic_launcher.png res/mipmap-hdpi/ic_launcher.png
-        cp res/mipmap-mdpi/ic_launcher.png res/mipmap-hdpi/ic_launcher_round.png
-        cp res/mipmap-mdpi/ic_launcher.png res/mipmap-xhdpi/ic_launcher.png  
-        cp res/mipmap-mdpi/ic_launcher.png res/mipmap-xhdpi/ic_launcher_round.png
-        cp res/mipmap-mdpi/ic_launcher.png res/mipmap-xxhdpi/ic_launcher.png
-        cp res/mipmap-mdpi/ic_launcher.png res/mipmap-xxhdpi/ic_launcher_round.png
-        cp res/mipmap-mdpi/ic_launcher.png res/mipmap-xxxhdpi/ic_launcher.png
-        cp res/mipmap-mdpi/ic_launcher.png res/mipmap-xxxhdpi/ic_launcher_round.png
 
     - name: 🔑 Create Keystore & Setup
       run: |
@@ -252,7 +631,6 @@
           android/app/build/outputs/apk/debug/app-debug.apk
           android/app/build/outputs/apk/release/app-release.apk
 
-  # ===== DEPLOYMENT DOCUMENTATION =====
   create-deployment-docs:
     runs-on: ubuntu-latest
     needs: [build-android-production]
@@ -1120,9 +1498,9 @@ jobs:
         }
         CMEOF
 
-    - name: 📱 Create Production MainActivity
+    - name: 📱 Create Production MainActivity (Part 1)
       run: |
-        cat > android/app/src/main/java/com/deadtime/MainActivity.java << 'MAEOF'
+        cat > android/app/src/main/java/com/deadtime/MainActivity.java << 'MAEOF1'
         package com.deadtime;
         
         import androidx.appcompat.app.AppCompatActivity;
@@ -1182,6 +1560,11 @@ jobs:
                 
                 Log.d(TAG, "DEADTIME PRODUCTION READY FOR MONEY GENERATION");
             }
+        MAEOF1
+
+    - name: 📱 Create Production MainActivity (Part 2)
+      run: |
+        cat >> android/app/src/main/java/com/deadtime/MainActivity.java << 'MAEOF2'
             
             private void createProductionUI() {
                 ScrollView scrollView = new ScrollView(this);
@@ -1273,6 +1656,11 @@ jobs:
                 withdrawButton.setLayoutParams(withdrawParams);
                 parent.addView(withdrawButton);
             }
+        MAEOF2
+
+    - name: 📱 Create Production MainActivity (Part 3 - Final)
+      run: |
+        cat >> android/app/src/main/java/com/deadtime/MainActivity.java << 'MAEOF3'
             
             private LinearLayout createEarningsCard(String title, String value, String color, boolean isMain) {
                 LinearLayout card = new LinearLayout(this);
@@ -1306,388 +1694,3 @@ jobs:
             
             private void createControls(LinearLayout parent) {
                 TextView sectionTitle = new TextView(this);
-                sectionTitle.setText("🎯 AI MONEY DETECTION");
-                sectionTitle.setTextSize(22);
-                sectionTitle.setTextColor(Color.WHITE);
-                sectionTitle.setTypeface(sectionTitle.getTypeface(), Typeface.BOLD);
-                sectionTitle.setPadding(0, 30, 0, 15);
-                parent.addView(sectionTitle);
-                
-                statusText = new TextView(this);
-                statusText.setText("🟢 Ready to detect money-making opportunities...");
-                statusText.setTextSize(16);
-                statusText.setTextColor(Color.WHITE);
-                statusText.setPadding(25, 20, 25, 20);
-                statusText.setBackgroundColor(Color.parseColor("#16213e"));
-                parent.addView(statusText);
-                
-                startDetectionButton = new Button(this);
-                startDetectionButton.setText("🚀 START MONEY DETECTION");
-                startDetectionButton.setTextSize(18);
-                startDetectionButton.setTextColor(Color.WHITE);
-                startDetectionButton.setBackgroundColor(Color.parseColor("#00ff88"));
-                startDetectionButton.setPadding(30, 25, 30, 25);
-                
-                LinearLayout.LayoutParams buttonParams = new LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-                buttonParams.setMargins(0, 15, 0, 0);
-                startDetectionButton.setLayoutParams(buttonParams);
-                
-                startDetectionButton.setOnClickListener(v -> toggleMoneyDetection());
-                parent.addView(startDetectionButton);
-            }
-            
-            private void createOpportunities(LinearLayout parent) {
-                TextView sectionTitle = new TextView(this);
-                sectionTitle.setText("💎 PREMIUM OPPORTUNITIES");
-                sectionTitle.setTextSize(22);
-                sectionTitle.setTextColor(Color.WHITE);
-                sectionTitle.setTypeface(sectionTitle.getTypeface(), Typeface.BOLD);
-                sectionTitle.setPadding(0, 30, 0, 15);
-                parent.addView(sectionTitle);
-                
-                TextView subtitle = new TextView(this);
-                subtitle.setText("Global brand partnerships • Instant payouts");
-                subtitle.setTextSize(14);
-                subtitle.setTextColor(Color.parseColor("#888888"));
-                subtitle.setPadding(0, 0, 0, 15);
-                parent.addView(subtitle);
-                
-                opportunitiesContainer = new LinearLayout(this);
-                opportunitiesContainer.setOrientation(LinearLayout.VERTICAL);
-                parent.addView(opportunitiesContainer);
-            }
-            
-            private void createTransactions(LinearLayout parent) {
-                TextView sectionTitle = new TextView(this);
-                sectionTitle.setText("📊 RECENT EARNINGS");
-                sectionTitle.setTextSize(20);
-                sectionTitle.setTextColor(Color.WHITE);
-                sectionTitle.setTypeface(sectionTitle.getTypeface(), Typeface.BOLD);
-                sectionTitle.setPadding(0, 30, 0, 15);
-                parent.addView(sectionTitle);
-                
-                transactionsContainer = new LinearLayout(this);
-                transactionsContainer.setOrientation(LinearLayout.VERTICAL);
-                parent.addView(transactionsContainer);
-            }
-            
-            private void createFooter(LinearLayout parent) {
-                TextView appVersionText = new TextView(this);
-                appVersionText.setText("DeadTime v4.0 Production • Real Money System Active");
-                appVersionText.setTextSize(12);
-                appVersionText.setTextColor(Color.parseColor("#555555"));
-                appVersionText.setPadding(0, 30, 0, 0);
-                parent.addView(appVersionText);
-            }
-            
-            private void refreshContent() {
-                opportunitiesContainer.removeAllViews();
-                List<ContentOpportunity> content = contentManager.getPersonalizedContent(null, 6);
-                
-                for (ContentOpportunity opportunity : content) {
-                    addPremiumOpportunityCard(opportunity);
-                }
-                
-                updateTransactionHistory();
-            }
-            
-            private void addPremiumOpportunityCard(ContentOpportunity opportunity) {
-                LinearLayout card = new LinearLayout(this);
-                card.setOrientation(LinearLayout.VERTICAL);
-                card.setPadding(25, 20, 25, 20);
-                card.setBackgroundColor(Color.parseColor(opportunity.color));
-                
-                LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-                params.setMargins(0, 0, 0, 15);
-                card.setLayoutParams(params);
-                
-                TextView titleView = new TextView(this);
-                titleView.setText("💎 " + opportunity.title);
-                titleView.setTextSize(17);
-                titleView.setTextColor(Color.WHITE);
-                titleView.setTypeface(titleView.getTypeface(), Typeface.BOLD);
-                card.addView(titleView);
-                
-                TextView descView = new TextView(this);
-                descView.setText(opportunity.description);
-                descView.setTextSize(14);
-                descView.setTextColor(Color.parseColor("#f0f0f0"));
-                descView.setPadding(0, 8, 0, 12);
-                card.addView(descView);
-                
-                LinearLayout metaLayout = new LinearLayout(this);
-                metaLayout.setOrientation(LinearLayout.HORIZONTAL);
-                
-                TextView earningView = new TextView(this);
-                earningView.setText("💰 " + opportunity.getFormattedEarning());
-                earningView.setTextSize(16);
-                earningView.setTextColor(Color.WHITE);
-                earningView.setTypeface(earningView.getTypeface(), Typeface.BOLD);
-                metaLayout.addView(earningView);
-                
-                TextView durationView = new TextView(this);
-                durationView.setText(" • ⏱️ " + opportunity.getFormattedDuration());
-                durationView.setTextSize(14);
-                durationView.setTextColor(Color.parseColor("#f0f0f0"));
-                metaLayout.addView(durationView);
-                
-                card.addView(metaLayout);
-                
-                card.setOnClickListener(v -> earnMoneyFromOpportunity(opportunity));
-                
-                opportunitiesContainer.addView(card);
-            }
-            
-            private void earnMoneyFromOpportunity(ContentOpportunity opportunity) {
-                boolean completed = contentManager.completeOpportunity(opportunity);
-                if (completed) {
-                    sessionEarnings += opportunity.earning;
-                    updateStats();
-                    refreshContent();
-                    
-                    statusText.setText("💰 EARNED: " + opportunity.getFormattedEarning() + 
-                                     " from " + opportunity.title);
-                    statusText.setBackgroundColor(Color.parseColor("#00ff88"));
-                    
-                    Log.d(TAG, "💰 MONEY EARNED: " + opportunity.getFormattedEarning());
-                }
-            }
-            
-            private void updateTransactionHistory() {
-                transactionsContainer.removeAllViews();
-                List<Transaction> transactions = paymentManager.getRecentTransactions(5);
-                
-                if (transactions.isEmpty()) {
-                    TextView noTransactions = new TextView(this);
-                    noTransactions.setText("No earnings yet. Start detecting opportunities!");
-                    noTransactions.setTextSize(14);
-                    noTransactions.setTextColor(Color.parseColor("#888888"));
-                    noTransactions.setPadding(20, 15, 20, 15);
-                    transactionsContainer.addView(noTransactions);
-                    return;
-                }
-                
-                for (Transaction transaction : transactions) {
-                    addTransactionCard(transaction);
-                }
-            }
-            
-            private void addTransactionCard(Transaction transaction) {
-                LinearLayout card = new LinearLayout(this);
-                card.setOrientation(LinearLayout.HORIZONTAL);
-                card.setPadding(20, 15, 20, 15);
-                card.setBackgroundColor(Color.parseColor("#2c3e50"));
-                
-                LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-                params.setMargins(0, 0, 0, 10);
-                card.setLayoutParams(params);
-                
-                LinearLayout leftLayout = new LinearLayout(this);
-                leftLayout.setOrientation(LinearLayout.VERTICAL);
-                leftLayout.setLayoutParams(new LinearLayout.LayoutParams(0, 
-                    LinearLayout.LayoutParams.WRAP_CONTENT, 1.0f));
-                
-                TextView descView = new TextView(this);
-                descView.setText(transaction.description);
-                descView.setTextSize(14);
-                descView.setTextColor(Color.WHITE);
-                leftLayout.addView(descView);
-                
-                TextView timeView = new TextView(this);
-                timeView.setText(transaction.timestamp);
-                timeView.setTextSize(12);
-                timeView.setTextColor(Color.parseColor("#95a5a6"));
-                timeView.setPadding(0, 4, 0, 0);
-                leftLayout.addView(timeView);
-                
-                TextView amountView = new TextView(this);
-                amountView.setText("+€" + String.format("%.2f", transaction.amount));
-                amountView.setTextSize(16);
-                amountView.setTextColor(Color.parseColor("#00ff88"));
-                amountView.setTypeface(amountView.getTypeface(), Typeface.BOLD);
-                
-                card.addView(leftLayout);
-                card.addView(amountView);
-                transactionsContainer.addView(card);
-            }
-            
-            private void updateStats() {
-                PaymentStats stats = paymentManager.getPaymentStats();
-                
-                totalEarningsText.setText("€" + String.format("%.2f", stats.totalEarnings));
-                double available = stats.totalEarnings - stats.pendingPayouts;
-                availableBalanceText.setText("€" + String.format("%.2f", available));
-                sessionEarningsText.setText("€" + String.format("%.2f", sessionEarnings));
-                
-                withdrawButton.setEnabled(paymentManager.canWithdraw());
-                withdrawButton.setBackgroundColor(Color.parseColor(
-                    paymentManager.canWithdraw() ? "#27ae60" : "#7f8c8d"));
-            }
-            
-            private void showWithdrawalCenter() {
-                AlertDialog.Builder builder = new AlertDialog.Builder(this);
-                builder.setTitle("💳 Withdrawal Center");
-                
-                LinearLayout layout = new LinearLayout(this);
-                layout.setOrientation(LinearLayout.VERTICAL);
-                layout.setPadding(40, 20, 40, 20);
-                
-                TextView infoText = new TextView(this);
-                double available = paymentManager.getTotalEarnings() - paymentManager.getPendingPayouts();
-                infoText.setText("Available for withdrawal: €" + String.format("%.2f", available) + 
-                               "\nMinimum withdrawal: €5.00\nProcessing time: 24-48 hours");
-                infoText.setTextSize(16);
-                infoText.setPadding(0, 0, 0, 20);
-                layout.addView(infoText);
-                
-                EditText methodInput = new EditText(this);
-                methodInput.setHint("Payment method (PayPal, Bank Transfer)");
-                methodInput.setText("PayPal");
-                methodInput.setPadding(15, 15, 15, 15);
-                layout.addView(methodInput);
-                
-                EditText accountInput = new EditText(this);
-                accountInput.setHint("PayPal email or IBAN");
-                accountInput.setPadding(15, 15, 15, 15);
-                layout.addView(accountInput);
-                
-                builder.setView(layout);
-                builder.setPositiveButton("💸 WITHDRAW NOW", (dialog, which) -> {
-                    String method = methodInput.getText().toString().trim();
-                    String account = accountInput.getText().toString().trim();
-                    
-                    if (!method.isEmpty() && !account.isEmpty()) {
-                        WithdrawalResult result = paymentManager.requestWithdrawal(method, account);
-                        
-                        statusText.setText(result.success ? "✅ " + result.message : "❌ " + result.message);
-                        statusText.setBackgroundColor(Color.parseColor(result.success ? "#00ff88" : "#e74c3c"));
-                        
-                        if (result.success) {
-                            updateStats();
-                            Log.d(TAG, "💸 WITHDRAWAL PROCESSED: €" + String.format("%.2f", result.amount));
-                        }
-                    } else {
-                        statusText.setText("❌ Please enter payment method and account details");
-                        statusText.setBackgroundColor(Color.parseColor("#e74c3c"));
-                    }
-                });
-                builder.setNegativeButton("Cancel", null);
-                builder.show();
-            }
-            
-            private void toggleMoneyDetection() {
-                if (!detectionActive) {
-                    detectionActive = true;
-                    startDetectionButton.setText("⏹️ STOP DETECTION");
-                    startDetectionButton.setBackgroundColor(Color.parseColor("#e74c3c"));
-                    statusText.setText("🟢 AI MONEY DETECTION ACTIVE - Scanning for opportunities...");
-                    statusText.setBackgroundColor(Color.parseColor("#00ff88"));
-                    
-                    startAutomaticEarnings();
-                    Log.d(TAG, "🎯 MONEY DETECTION STARTED");
-                } else {
-                    detectionActive = false;
-                    startDetectionButton.setText("🚀 START MONEY DETECTION");
-                    startDetectionButton.setBackgroundColor(Color.parseColor("#00ff88"));
-                    statusText.setText("🔍 Money detection stopped - Press to reactivate");
-                    statusText.setBackgroundColor(Color.parseColor("#16213e"));
-                    
-                    Log.d(TAG, "🛑 MONEY DETECTION STOPPED");
-                }
-            }
-            
-            private void startAutomaticEarnings() {
-                if (detectionActive) {
-                    new Thread(() -> {
-                        try {
-                            Thread.sleep(45000);
-                            
-                            if (detectionActive) {
-                                runOnUiThread(() -> {
-                                    ContentOpportunity highValue = contentManager.getHighValueContent(null);
-                                    if (highValue != null) {
-                                        boolean completed = contentManager.completeOpportunity(highValue);
-                                        if (completed) {
-                                            sessionEarnings += highValue.earning;
-                                            updateStats();
-                                            refreshContent();
-                                            
-                                            statusText.setText("💰 AUTO-DETECTED: " + highValue.getFormattedEarning() + 
-                                                             " from " + highValue.title);
-                                            statusText.setBackgroundColor(Color.parseColor("#00ff88"));
-                                            
-                                            Log.d(TAG, "🤖 AUTO-EARNED: " + highValue.getFormattedEarning());
-                                        }
-                                    }
-                                    
-                                    startAutomaticEarnings();
-                                });
-                            }
-                        } catch (InterruptedException e) {
-                            Log.e(TAG, "Detection interrupted", e);
-                        }
-                    }).start();
-                }
-            }
-            
-            private void requestPermissions() {
-                String[] permissions = {
-                    Manifest.permission.ACCESS_FINE_LOCATION,
-                    Manifest.permission.ACCESS_COARSE_LOCATION
-                };
-                
-                boolean needsPermission = false;
-                for (String permission : permissions) {
-                    if (ContextCompat.checkSelfPermission(this, permission) != PackageManager.PERMISSION_GRANTED) {
-                        needsPermission = true;
-                        break;
-                    }
-                }
-                
-                if (needsPermission) {
-                    ActivityCompat.requestPermissions(this, permissions, PERMISSION_REQUEST_CODE);
-                }
-            }
-            
-            @Override
-            public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
-                super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-                if (requestCode == PERMISSION_REQUEST_CODE) {
-                    boolean allGranted = true;
-                    for (int result : grantResults) {
-                        if (result != PackageManager.PERMISSION_GRANTED) {
-                            allGranted = false;
-                            break;
-                        }
-                    }
-                    
-                    if (allGranted) {
-                        statusText.setText("✅ Location permissions granted - Enhanced geo-targeting enabled!");
-                        statusText.setBackgroundColor(Color.parseColor("#00ff88"));
-                        Log.d(TAG, "✅ All permissions granted - GEO-TARGETING ACTIVE");
-                    } else {
-                        statusText.setText("⚠️ Limited permissions - Basic mode only");
-                        statusText.setBackgroundColor(Color.parseColor("#f39c12"));
-                        Log.w(TAG, "⚠️ Limited permissions");
-                    }
-                }
-            }
-            
-            @Override
-            protected void onResume() {
-                super.onResume();
-                updateStats();
-                refreshContent();
-                Log.d(TAG, "📱 App resumed - Refreshing money opportunities");
-            }
-            
-            @Override
-            protected void onPause() {
-                super.onPause();
-                Log.d(TAG, "📱 App paused - Detection continues in background");
-            }
-        }
-        MAEOF
