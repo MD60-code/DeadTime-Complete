@@ -1,147 +1,608 @@
-sensorManager.registerListener(this, accelerometer, SensorManager.SENSOR_DELAY_NORMAL);
-                    Log.d(TAG, "✅ Payment-enabled detection sensors started");
-                } catch (SecurityException e) {
-                    Log.e(TAG, "❌ Permission denied for location", e);
-                }
+name: DeadTime Step 3 - Payment System + Geo Targeting
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+
+    - name: Setup Java
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'temurin'
+        java-version: '17'
+
+    - name: Setup Android SDK
+      uses: android-actions/setup-android@v3
+
+    - name: Setup Android NDK
+      uses: nttld/setup-ndk@v1
+      with:
+        ndk-version: r23c
+        
+    - name: Set NDK environment variables
+      run: |
+        echo "ANDROID_NDK_ROOT=$ANDROID_NDK_HOME" >> $GITHUB_ENV
+        echo "ANDROID_NDK_HOME=$ANDROID_NDK_HOME" >> $GITHUB_ENV
+        echo "NDK_HOME=$ANDROID_NDK_HOME" >> $GITHUB_ENV
+
+    - name: 🧹 Clean Previous Build
+      run: |
+        rm -rf node_modules
+        rm -rf package-lock.json
+        rm -rf android/app/src/main/java/
+
+    - name: 💳 Create Payment System Structure
+      run: |
+        cd android/app/src/main
+        mkdir -p java/com/deadtime
+
+    - name: 📄 Create PaymentManager.java
+      run: |
+        cat > android/app/src/main/java/com/deadtime/PaymentManager.java << 'PMEOF'
+        package com.deadtime;
+        
+        import android.content.Context;
+        import android.content.SharedPreferences;
+        import android.util.Log;
+        import java.util.ArrayList;
+        import java.util.List;
+        import java.util.Date;
+        import java.text.SimpleDateFormat;
+        import java.util.Locale;
+        
+        public class PaymentManager {
+            private static final String TAG = "PaymentManager";
+            private static final String PREFS_NAME = "DeadTimePayments";
+            private Context context;
+            private SharedPreferences prefs;
+            
+            public PaymentManager(Context context) {
+                this.context = context;
+                this.prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
             }
             
-            @Override
-            public void onLocationChanged(Location location) {
-                Log.d(TAG, "📍 Location: " + location.getLatitude() + ", " + location.getLongitude() + 
-                           " (Accuracy: " + location.getAccuracy() + "m)");
+            public void addEarning(double amount, String source, String description) {
+                double currentBalance = getTotalEarnings();
+                double newBalance = currentBalance + amount;
                 
-                if (lastLocation != null) {
-                    float distance = lastLocation.distanceTo(location);
-                    long timeDiff = System.currentTimeMillis() - lastLocationTime;
-                    
-                    if (distance < 25 && timeDiff > LOCATION_STABLE_TIME && location.getAccuracy() < 30) {
-                        checkForDeadTime(location);
-                    }
+                String timestamp = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(new Date());
+                String transactionKey = "transaction_" + System.currentTimeMillis();
+                
+                SharedPreferences.Editor editor = prefs.edit();
+                editor.putFloat("total_earnings", (float) newBalance);
+                editor.putString(transactionKey + "_amount", String.valueOf(amount));
+                editor.putString(transactionKey + "_source", source);
+                editor.putString(transactionKey + "_description", description);
+                editor.putString(transactionKey + "_timestamp", timestamp);
+                editor.putBoolean(transactionKey + "_pending", true);
+                editor.apply();
+                
+                Log.d(TAG, "Earning added: " + String.format("%.2f", amount) + " from " + source);
+            }
+            
+            public double getTotalEarnings() {
+                return prefs.getFloat("total_earnings", 0.0f);
+            }
+            
+            public double getPendingPayouts() {
+                return prefs.getFloat("pending_payouts", 0.0f);
+            }
+            
+            public double getWithdrawnAmount() {
+                return prefs.getFloat("withdrawn_amount", 0.0f);
+            }
+            
+            public boolean canWithdraw() {
+                return getTotalEarnings() >= 5.0;
+            }
+            
+            public WithdrawalResult requestWithdrawal(String paymentMethod, String accountDetails) {
+                double availableAmount = getTotalEarnings() - getPendingPayouts();
+                
+                if (!canWithdraw()) {
+                    return new WithdrawalResult(false, "Importo minimo per prelievo: 5.00", 0.0);
                 }
                 
-                lastLocation = location;
-                lastLocationTime = System.currentTimeMillis();
-            }
-            
-            @Override
-            public void onSensorChanged(SensorEvent event) {
-                if (event.sensor.getType() == Sensor.TYPE_ACCELEROMETER) {
-                    float x = event.values[0];
-                    float y = event.values[1];
-                    float z = event.values[2];
-                    
-                    float acceleration = (float) Math.sqrt(x*x + y*y + z*z) - 9.8f;
-                    accelerometerValues.add(Math.abs(acceleration));
-                    
-                    if (accelerometerValues.size() > ACCELEROMETER_SAMPLES) {
-                        accelerometerValues.remove(0);
-                    }
-                    
-                    if (accelerometerValues.size() == ACCELEROMETER_SAMPLES) {
-                        checkMovementPattern();
-                    }
+                if (availableAmount < 5.0) {
+                    return new WithdrawalResult(false, "Prelievi in corso. Disponibile: " + 
+                                              String.format("%.2f", availableAmount), 0.0);
                 }
-            }
-            
-            private void checkMovementPattern() {
-                float avgAcceleration = 0;
-                for (float value : accelerometerValues) {
-                    avgAcceleration += value;
-                }
-                avgAcceleration /= accelerometerValues.size();
                 
-                if (avgAcceleration < MOVEMENT_THRESHOLD) {
-                    Log.d(TAG, "🚶‍♂️ Minimal movement detected (avg: " + 
-                              String.format("%.2f", avgAcceleration) + ")");
-                    checkForDeadTime(lastLocation);
-                }
+                double withdrawAmount = availableAmount;
+                double currentPending = getPendingPayouts();
+                
+                SharedPreferences.Editor editor = prefs.edit();
+                editor.putFloat("pending_payouts", (float) (currentPending + withdrawAmount));
+                
+                String timestamp = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(new Date());
+                String withdrawalKey = "withdrawal_" + System.currentTimeMillis();
+                editor.putString(withdrawalKey + "_amount", String.valueOf(withdrawAmount));
+                editor.putString(withdrawalKey + "_method", paymentMethod);
+                editor.putString(withdrawalKey + "_account", accountDetails);
+                editor.putString(withdrawalKey + "_timestamp", timestamp);
+                editor.putString(withdrawalKey + "_status", "PROCESSING");
+                editor.apply();
+                
+                processWithdrawalAsync(withdrawalKey, withdrawAmount);
+                
+                Log.d(TAG, "Withdrawal requested: " + String.format("%.2f", withdrawAmount) + " via " + paymentMethod);
+                
+                return new WithdrawalResult(true, "Prelievo in elaborazione. Riceverai " + 
+                                          String.format("%.2f", withdrawAmount) + " entro 24-48 ore.", withdrawAmount);
             }
             
-            private void checkForDeadTime(Location location) {
-                if (!isInDeadTime) {
-                    isInDeadTime = true;
-                    deadTimeStartTime = System.currentTimeMillis();
-                    detectionCount++;
-                    
-                    Log.d(TAG, "💰 MONEY OPPORTUNITY DETECTED! (#" + detectionCount + ") Processing...");
-                    
-                    // Get location-based high-value content
-                    ContentOpportunity highValueContent = contentManager.getHighValueContent(location);
-                    
-                    // Auto-complete the opportunity (simulate user engagement)
-                    boolean completed = contentManager.completeOpportunity(highValueContent);
-                    
-                    if (completed) {
-                        sendMoneyEarnedNotification(highValueContent);
+            private void processWithdrawalAsync(String withdrawalKey, double amount) {
+                new Thread(() -> {
+                    try {
+                        Thread.sleep(3000);
                         
-                        // Trigger main activity with payment info
-                        Intent intent = new Intent(this, MainActivity.class);
-                        intent.putExtra("moneyEarned", true);
-                        intent.putExtra("location", location);
-                        intent.putExtra("detectionCount", detectionCount);
-                        intent.putExtra("contentTitle", highValueContent.title);
-                        intent.putExtra("contentEarning", highValueContent.earning);
-                        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
-                        startActivity(intent);
+                        SharedPreferences.Editor editor = prefs.edit();
+                        editor.putString(withdrawalKey + "_status", "COMPLETED");
+                        
+                        double currentPending = getPendingPayouts();
+                        double currentWithdrawn = getWithdrawnAmount();
+                        editor.putFloat("pending_payouts", (float) (currentPending - amount));
+                        editor.putFloat("withdrawn_amount", (float) (currentWithdrawn + amount));
+                        editor.apply();
+                        
+                        Log.d(TAG, "Withdrawal completed: " + String.format("%.2f", amount));
+                    } catch (InterruptedException e) {
+                        Log.e(TAG, "Withdrawal processing interrupted", e);
                     }
-                    
-                    // Reset after 8 minutes
-                    handler.postDelayed(() -> {
-                        isInDeadTime = false;
-                        Log.d(TAG, "🔄 Money detection reset");
-                    }, 480000);
-                }
+                }).start();
             }
             
-            private void sendMoneyEarnedNotification(ContentOpportunity content) {
-                Intent intent = new Intent(this, MainActivity.class);
-                intent.putExtra("fromNotification", true);
-                PendingIntent pendingIntent = PendingIntent.getActivity(
-                    this, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
+            public List<Transaction> getRecentTransactions(int limit) {
+                List<Transaction> transactions = new ArrayList<>();
+                
+                for (String key : prefs.getAll().keySet()) {
+                    if (key.startsWith("transaction_") && key.endsWith("_amount")) {
+                        String baseKey = key.replace("_amount", "");
+                        
+                        String amountStr = prefs.getString(baseKey + "_amount", "0");
+                        String source = prefs.getString(baseKey + "_source", "Unknown");
+                        String description = prefs.getString(baseKey + "_description", "");
+                        String timestamp = prefs.getString(baseKey + "_timestamp", "");
+                        
+                        try {
+                            double amount = Double.parseDouble(amountStr);
+                            transactions.add(new Transaction(amount, source, description, timestamp, "COMPLETED"));
+                        } catch (NumberFormatException e) {
+                            Log.w(TAG, "Invalid transaction amount: " + amountStr);
+                        }
+                    }
+                }
+                
+                return transactions.subList(0, Math.min(limit, transactions.size()));
+            }
+            
+            public PaymentStats getPaymentStats() {
+                return new PaymentStats(
+                    getTotalEarnings(),
+                    getPendingPayouts(), 
+                    getWithdrawnAmount(),
+                    getRecentTransactions(50).size()
                 );
-                
-                NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CHANNEL_ID)
-                    .setSmallIcon(android.R.drawable.ic_dialog_info)
-                    .setContentTitle("💰 SOLDI GUADAGNATI!")
-                    .setContentText("€" + String.format("%.2f", content.earning) + " da " + content.title)
-                    .setStyle(new NotificationCompat.BigTextStyle()
-                        .bigText("🎉 Hai appena guadagnato €" + String.format("%.2f", content.earning) + 
-                                "!\\n💳 Disponibile per prelievo\\n🎯 " + content.description))
-                    .setPriority(NotificationCompat.PRIORITY_HIGH)
-                    .setContentIntent(pendingIntent)
-                    .setAutoCancel(true)
-                    .setVibrate(new long[]{0, 800, 200, 800, 200, 800});
-                
-                NotificationManager notificationManager = getSystemService(NotificationManager.class);
-                notificationManager.notify(detectionCount, builder.build());
-                
-                Log.d(TAG, "💸 Money notification sent: €" + String.format("%.2f", content.earning));
-            }
-            
-            @Override
-            public IBinder onBind(Intent intent) {
-                return null;
-            }
-            
-            @Override
-            public void onAccuracyChanged(Sensor sensor, int accuracy) {}
-            
-            @Override
-            public void onDestroy() {
-                super.onDestroy();
-                if (locationManager != null) {
-                    locationManager.removeUpdates(this);
-                }
-                if (sensorManager != null) {
-                    sensorManager.unregisterListener(this);
-                }
-                Log.d(TAG, "🛑 Payment Detection Service Destroyed");
             }
         }
-        DETECTION_EOF
         
-        # 5. MAIN ACTIVITY with Payment Dashboard
-        cat > java/com/deadtime/MainActivity.java << 'MAIN_EOF'
+        class WithdrawalResult {
+            public boolean success;
+            public String message;
+            public double amount;
+            
+            public WithdrawalResult(boolean success, String message, double amount) {
+                this.success = success;
+                this.message = message;
+                this.amount = amount;
+            }
+        }
+        
+        class Transaction {
+            public double amount;
+            public String source;
+            public String description;
+            public String timestamp;
+            public String status;
+            
+            public Transaction(double amount, String source, String description, String timestamp, String status) {
+                this.amount = amount;
+                this.source = source;
+                this.description = description;
+                this.timestamp = timestamp;
+                this.status = status;
+            }
+        }
+        
+        class PaymentStats {
+            public double totalEarnings;
+            public double pendingPayouts;
+            public double withdrawnAmount;
+            public int transactionCount;
+            
+            public PaymentStats(double totalEarnings, double pendingPayouts, double withdrawnAmount, int transactionCount) {
+                this.totalEarnings = totalEarnings;
+                this.pendingPayouts = pendingPayouts;
+                this.withdrawnAmount = withdrawnAmount;
+                this.transactionCount = transactionCount;
+            }
+        }
+        PMEOF
+
+    - name: 📍 Create GeoTargetingManager.java
+      run: |
+        cat > android/app/src/main/java/com/deadtime/GeoTargetingManager.java << 'GMEOF'
+        package com.deadtime;
+        
+        import android.location.Location;
+        import android.util.Log;
+        import java.util.ArrayList;
+        import java.util.List;
+        import java.util.Random;
+        
+        public class GeoTargetingManager {
+            private static final String TAG = "GeoTargeting";
+            private List<LocalBusiness> businesses;
+            private Random random = new Random();
+            
+            public GeoTargetingManager() {
+                initializeLocalBusinesses();
+            }
+            
+            private void initializeLocalBusinesses() {
+                businesses = new ArrayList<>();
+                
+                businesses.add(new LocalBusiness(
+                    "Pizzeria Da Gino",
+                    "Nuova pizza al tartufo - Sconto 20%",
+                    45.4642, 9.1900,
+                    500,
+                    7.50,
+                    "RESTAURANT",
+                    "Prova la nostra nuova pizza gourmet"
+                ));
+                
+                businesses.add(new LocalBusiness(
+                    "Caffe Centrale",
+                    "Cappuccino + Cornetto = 3.50",
+                    45.4654, 9.1859,
+                    300,
+                    2.80,
+                    "CAFE",
+                    "Colazione italiana autentica"
+                ));
+                
+                businesses.add(new LocalBusiness(
+                    "Boutique Milano",
+                    "Saldi fino al 50% - Collezione inverno",
+                    45.4676, 9.1926,
+                    800,
+                    12.30,
+                    "FASHION",
+                    "Shopping di lusso nel quadrilatero"
+                ));
+                
+                businesses.add(new LocalBusiness(
+                    "TechStore Pro",
+                    "iPhone 15 disponibile - Finanziamento 0%",
+                    45.4658, 9.1901,
+                    400,
+                    15.60,
+                    "TECHNOLOGY",
+                    "Ultima tecnologia Apple e Samsung"
+                ));
+                
+                Log.d(TAG, "Loaded " + businesses.size() + " local businesses");
+            }
+            
+            public List<LocalBusiness> getNearbyBusinesses(Location userLocation, double maxDistanceKm) {
+                List<LocalBusiness> nearby = new ArrayList<>();
+                
+                if (userLocation == null) {
+                    Log.w(TAG, "User location is null, returning random businesses");
+                    for (int i = 0; i < 3; i++) {
+                        if (i < businesses.size()) {
+                            nearby.add(businesses.get(random.nextInt(businesses.size())));
+                        }
+                    }
+                    return nearby;
+                }
+                
+                for (LocalBusiness business : businesses) {
+                    double distance = calculateDistance(
+                        userLocation.getLatitude(), userLocation.getLongitude(),
+                        business.latitude, business.longitude
+                    );
+                    
+                    if (distance <= maxDistanceKm) {
+                        business.distanceFromUser = distance;
+                        nearby.add(business);
+                        Log.d(TAG, "Found nearby business: " + business.name + 
+                                   " (" + String.format("%.2f", distance) + "km away)");
+                    }
+                }
+                
+                nearby.sort((b1, b2) -> Double.compare(b1.distanceFromUser, b2.distanceFromUser));
+                
+                for (LocalBusiness business : nearby) {
+                    double distanceBonus = Math.max(0, (1.0 - business.distanceFromUser) * 2.0);
+                    business.earning += distanceBonus;
+                }
+                
+                Log.d(TAG, "Found " + nearby.size() + " businesses within " + maxDistanceKm + "km");
+                return nearby;
+            }
+            
+            public List<ContentOpportunity> getLocationBasedContent(Location userLocation) {
+                List<ContentOpportunity> locationContent = new ArrayList<>();
+                List<LocalBusiness> nearbyBusinesses = getNearbyBusinesses(userLocation, 2.0);
+                
+                for (LocalBusiness business : nearbyBusinesses) {
+                    ContentOpportunity opportunity = new ContentOpportunity(
+                        business.name,
+                        business.description + " (A " + String.format("%.0f", business.distanceFromUser * 1000) + "m da te)",
+                        business.earning,
+                        180,
+                        ContentType.LOCAL_DEMO,
+                        getBusinessColor(business.category),
+                        "geo://" + business.latitude + "," + business.longitude
+                    );
+                    
+                    locationContent.add(opportunity);
+                }
+                
+                Log.d(TAG, "Generated " + locationContent.size() + " location-based opportunities");
+                return locationContent;
+            }
+            
+            private double calculateDistance(double lat1, double lon1, double lat2, double lon2) {
+                final int R = 6371;
+                
+                double latDistance = Math.toRadians(lat2 - lat1);
+                double lonDistance = Math.toRadians(lon2 - lon1);
+                double a = Math.sin(latDistance / 2) * Math.sin(latDistance / 2)
+                        + Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2))
+                        * Math.sin(lonDistance / 2) * Math.sin(lonDistance / 2);
+                double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+                
+                return R * c;
+            }
+            
+            private String getBusinessColor(String category) {
+                switch (category) {
+                    case "RESTAURANT": return "#e74c3c";
+                    case "CAFE": return "#8b4513";
+                    case "FASHION": return "#e91e63";
+                    case "TECHNOLOGY": return "#3498db";
+                    default: return "#7f8c8d";
+                }
+            }
+        }
+        
+        class LocalBusiness {
+            public String name;
+            public String description;
+            public double latitude;
+            public double longitude;
+            public int radiusMeters;
+            public double earning;
+            public String category;
+            public String offer;
+            public double distanceFromUser;
+            
+            public LocalBusiness(String name, String description, double latitude, double longitude,
+                               int radiusMeters, double earning, String category, String offer) {
+                this.name = name;
+                this.description = description;
+                this.latitude = latitude;
+                this.longitude = longitude;
+                this.radiusMeters = radiusMeters;
+                this.earning = earning;
+                this.category = category;
+                this.offer = offer;
+                this.distanceFromUser = 0.0;
+            }
+        }
+        GMEOF
+
+    - name: 📊 Create ContentManager.java
+      run: |
+        cat > android/app/src/main/java/com/deadtime/ContentManager.java << 'CMEOF'
+        package com.deadtime;
+        
+        import android.content.Context;
+        import android.location.Location;
+        import android.util.Log;
+        import java.util.ArrayList;
+        import java.util.List;
+        import java.util.Random;
+        
+        public class ContentManager {
+            private static final String TAG = "ContentManager";
+            private Context context;
+            private List<ContentOpportunity> availableContent;
+            private PaymentManager paymentManager;
+            private GeoTargetingManager geoManager;
+            private Random random = new Random();
+            
+            public ContentManager(Context context) {
+                this.context = context;
+                this.paymentManager = new PaymentManager(context);
+                this.geoManager = new GeoTargetingManager();
+                this.availableContent = new ArrayList<>();
+                loadContentLibrary();
+            }
+            
+            private void loadContentLibrary() {
+                availableContent.add(new ContentOpportunity(
+                    "Tesla Model 3 Demo", 
+                    "Esperienza di guida virtuale", 
+                    8.50, 
+                    240,
+                    ContentType.VIDEO,
+                    "#e74c3c",
+                    "Scopri la rivoluzione elettrica"
+                ));
+                
+                availableContent.add(new ContentOpportunity(
+                    "Sondaggio Alimentazione", 
+                    "Le tue abitudini culinarie", 
+                    4.80, 
+                    180, 
+                    ContentType.SURVEY,
+                    "#3498db",
+                    "Aiuta la ricerca nutrizionale"
+                ));
+                
+                availableContent.add(new ContentOpportunity(
+                    "Puzzle Sponsorizzato", 
+                    "Mini-game interattivo", 
+                    3.20, 
+                    120, 
+                    ContentType.INTERACTIVE,
+                    "#f39c12",
+                    "Gioca e guadagna"
+                ));
+                
+                availableContent.add(new ContentOpportunity(
+                    "Tour Virtuale Immobili", 
+                    "Appartamenti di lusso Milano", 
+                    12.30, 
+                    300, 
+                    ContentType.VIDEO,
+                    "#16a085",
+                    "Investimenti immobiliari premium"
+                ));
+                
+                Log.d(TAG, "Loaded " + availableContent.size() + " premium content opportunities");
+            }
+            
+            public List<ContentOpportunity> getPersonalizedContent(Location userLocation, int maxItems) {
+                List<ContentOpportunity> personalized = new ArrayList<>();
+                
+                if (userLocation != null) {
+                    List<ContentOpportunity> locationContent = geoManager.getLocationBasedContent(userLocation);
+                    personalized.addAll(locationContent.subList(0, Math.min(2, locationContent.size())));
+                }
+                
+                List<ContentOpportunity> shuffled = new ArrayList<>(availableContent);
+                int remainingSlots = maxItems - personalized.size();
+                
+                for (int i = 0; i < Math.min(remainingSlots, shuffled.size()); i++) {
+                    int randomIndex = random.nextInt(shuffled.size());
+                    ContentOpportunity content = shuffled.remove(randomIndex);
+                    
+                    content.earning += (random.nextDouble() - 0.5) * 2.0;
+                    content.earning = Math.max(1.00, content.earning);
+                    
+                    personalized.add(content);
+                }
+                
+                Log.d(TAG, "Generated " + personalized.size() + " personalized opportunities");
+                return personalized;
+            }
+            
+            public boolean completeOpportunity(ContentOpportunity opportunity) {
+                try {
+                    paymentManager.addEarning(
+                        opportunity.earning,
+                        opportunity.type.toString(),
+                        opportunity.title
+                    );
+                    
+                    Log.d(TAG, "Opportunity completed: " + opportunity.title + 
+                               " - Earned: " + String.format("%.2f", opportunity.earning));
+                    
+                    return true;
+                } catch (Exception e) {
+                    Log.e(TAG, "Error completing opportunity", e);
+                    return false;
+                }
+            }
+            
+            public PaymentManager getPaymentManager() {
+                return paymentManager;
+            }
+            
+            public ContentOpportunity getHighValueContent(Location userLocation) {
+                List<ContentOpportunity> allContent = getPersonalizedContent(userLocation, 10);
+                
+                ContentOpportunity bestContent = null;
+                double maxEarning = 0;
+                
+                for (ContentOpportunity content : allContent) {
+                    if (content.earning > maxEarning) {
+                        maxEarning = content.earning;
+                        bestContent = content;
+                    }
+                }
+                
+                if (bestContent != null) {
+                    bestContent.earning += random.nextDouble() * 3.0;
+                    Log.d(TAG, "High-value content selected: " + bestContent.title + 
+                               " - " + String.format("%.2f", bestContent.earning));
+                }
+                
+                return bestContent;
+            }
+        }
+        
+        class ContentOpportunity {
+            public String title;
+            public String description;
+            public double earning;
+            public int durationSeconds;
+            public ContentType type;
+            public String color;
+            public String actionUrl;
+            
+            public ContentOpportunity(String title, String description, double earning, 
+                                    int durationSeconds, ContentType type, String color, String actionUrl) {
+                this.title = title;
+                this.description = description;
+                this.earning = earning;
+                this.durationSeconds = durationSeconds;
+                this.type = type;
+                this.color = color;
+                this.actionUrl = actionUrl;
+            }
+            
+            public String getFormattedDuration() {
+                int minutes = durationSeconds / 60;
+                int seconds = durationSeconds % 60;
+                return minutes > 0 ? minutes + "m " + seconds + "s" : seconds + "s";
+            }
+            
+            public String getFormattedEarning() {
+                return "€" + String.format("%.2f", earning);
+            }
+        }
+        
+        enum ContentType {
+            VIDEO,
+            SURVEY, 
+            INTERACTIVE,
+            LOCAL_DEMO
+        }
+        CMEOF
+
+    - name: 📱 Create MainActivity.java
+      run: |
+        cat > android/app/src/main/java/com/deadtime/MainActivity.java << 'MAEOF'
         package com.deadtime;
         
         import androidx.appcompat.app.AppCompatActivity;
@@ -172,29 +633,24 @@ sensorManager.registerListener(this, accelerometer, SensorManager.SENSOR_DELAY_N
             private TextView statusText;
             private TextView totalEarningsText;
             private TextView availableBalanceText;
-            private TextView withdrawnAmountText;
             private LinearLayout opportunitiesContainer;
-            private LinearLayout transactionsContainer;
             private Button startDetectionButton;
             private Button withdrawButton;
-            private ProgressBar withdrawalProgress;
             
             private boolean detectionActive = false;
             private ContentManager contentManager;
             private PaymentManager paymentManager;
-            private int detectionCount = 0;
             
             @Override
             protected void onCreate(Bundle savedInstanceState) {
                 super.onCreate(savedInstanceState);
                 
-                Log.d(TAG, "🚀 DeadTime Payment System Starting...");
+                Log.d(TAG, "DeadTime Payment System Starting...");
                 
                 contentManager = new ContentManager(this);
                 paymentManager = contentManager.getPaymentManager();
                 
                 createPaymentUI();
-                handleMoneyEarnedIntent();
                 requestNecessaryPermissions();
                 updatePaymentStats();
             }
@@ -210,7 +666,6 @@ sensorManager.registerListener(this, accelerometer, SensorManager.SENSOR_DELAY_N
                 createPaymentDashboard(mainLayout);
                 createControlsSection(mainLayout);
                 createOpportunitiesSection(mainLayout);
-                createTransactionsSection(mainLayout);
                 
                 scrollView.addView(mainLayout);
                 setContentView(scrollView);
@@ -219,26 +674,19 @@ sensorManager.registerListener(this, accelerometer, SensorManager.SENSOR_DELAY_N
             }
             
             private void createHeaderSection(LinearLayout parent) {
-                LinearLayout headerContainer = new LinearLayout(this);
-                headerContainer.setOrientation(LinearLayout.VERTICAL);
-                headerContainer.setPadding(25, 25, 25, 25);
-                headerContainer.setBackgroundColor(Color.parseColor("#1a1a2e"));
-                
                 TextView headerText = new TextView(this);
                 headerText.setText("💰 DeadTime");
                 headerText.setTextSize(38);
                 headerText.setTextColor(Color.parseColor("#00ff88"));
                 headerText.setTypeface(headerText.getTypeface(), Typeface.BOLD);
-                headerContainer.addView(headerText);
+                parent.addView(headerText);
                 
                 TextView subtitleText = new TextView(this);
                 subtitleText.setText("Real Money from Dead Time");
                 subtitleText.setTextSize(14);
                 subtitleText.setTextColor(Color.parseColor("#888888"));
-                subtitleText.setPadding(0, 5, 0, 0);
-                headerContainer.addView(subtitleText);
-                
-                parent.addView(headerContainer);
+                subtitleText.setPadding(0, 5, 0, 25);
+                parent.addView(subtitleText);
             }
             
             private void createPaymentDashboard(LinearLayout parent) {
@@ -247,78 +695,34 @@ sensorManager.registerListener(this, accelerometer, SensorManager.SENSOR_DELAY_N
                 sectionTitle.setTextSize(22);
                 sectionTitle.setTextColor(Color.WHITE);
                 sectionTitle.setTypeface(sectionTitle.getTypeface(), Typeface.BOLD);
-                sectionTitle.setPadding(0, 30, 0, 15);
+                sectionTitle.setPadding(0, 20, 0, 15);
                 parent.addView(sectionTitle);
                 
-                // Payment Stats Grid
-                LinearLayout statsGrid = new LinearLayout(this);
-                statsGrid.setOrientation(LinearLayout.VERTICAL);
-                parent.addView(statsGrid);
+                LinearLayout statsRow = new LinearLayout(this);
+                statsRow.setOrientation(LinearLayout.HORIZONTAL);
+                parent.addView(statsRow);
                 
-                // Row 1: Total Earnings and Available Balance
-                LinearLayout row1 = new LinearLayout(this);
-                row1.setOrientation(LinearLayout.HORIZONTAL);
-                statsGrid.addView(row1);
-                
-                LinearLayout totalCard = createPaymentCard("💰 Totale Guadagnato", "€0.00", "#00ff88");
+                LinearLayout totalCard = createPaymentCard("Totale Guadagnato", "€0.00", "#00ff88");
                 totalEarningsText = (TextView) totalCard.getChildAt(1);
-                row1.addView(totalCard);
+                statsRow.addView(totalCard);
                 
-                LinearLayout availableCard = createPaymentCard("💵 Disponibile", "€0.00", "#3498db");
+                LinearLayout availableCard = createPaymentCard("Disponibile", "€0.00", "#3498db");
                 availableBalanceText = (TextView) availableCard.getChildAt(1);
-                row1.addView(availableCard);
-                
-                // Row 2: Withdrawn Amount and Withdrawal Button
-                LinearLayout row2 = new LinearLayout(this);
-                row2.setOrientation(LinearLayout.HORIZONTAL);
-                row2.setPadding(0, 10, 0, 0);
-                statsGrid.addView(row2);
-                
-                LinearLayout withdrawnCard = createPaymentCard("💸 Prelevato", "€0.00", "#e74c3c");
-                withdrawnAmountText = (TextView) withdrawnCard.getChildAt(1);
-                row2.addView(withdrawnCard);
-                
-                // Withdrawal Button Card
-                LinearLayout withdrawCard = new LinearLayout(this);
-                withdrawCard.setOrientation(LinearLayout.VERTICAL);
-                withdrawCard.setPadding(20, 15, 20, 15);
-                withdrawCard.setBackgroundColor(Color.parseColor("#f39c12"));
-                
-                LinearLayout.LayoutParams withdrawParams = new LinearLayout.LayoutParams(0, 
-                    LinearLayout.LayoutParams.WRAP_CONTENT, 1.0f);
-                withdrawParams.setMargins(5, 0, 0, 0);
-                withdrawCard.setLayoutParams(withdrawParams);
-                
-                TextView withdrawTitle = new TextView(this);
-                withdrawTitle.setText("💳 Prelievo");
-                withdrawTitle.setTextSize(12);
-                withdrawTitle.setTextColor(Color.WHITE);
-                withdrawCard.addView(withdrawTitle);
+                statsRow.addView(availableCard);
                 
                 withdrawButton = new Button(this);
                 withdrawButton.setText("PRELEVA");
-                withdrawButton.setTextSize(14);
+                withdrawButton.setTextSize(16);
                 withdrawButton.setTextColor(Color.WHITE);
-                withdrawButton.setBackgroundColor(Color.parseColor("#e67e22"));
-                withdrawButton.setPadding(15, 10, 15, 10);
+                withdrawButton.setBackgroundColor(Color.parseColor("#f39c12"));
+                withdrawButton.setPadding(20, 15, 20, 15);
                 withdrawButton.setOnClickListener(v -> showWithdrawalDialog());
-                withdrawCard.addView(withdrawButton);
                 
-                row2.addView(withdrawCard);
-                
-                // Withdrawal Progress
-                withdrawalProgress = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
-                withdrawalProgress.setPadding(0, 15, 0, 0);
-                withdrawalProgress.setMax(100);
-                withdrawalProgress.setProgress(0);
-                parent.addView(withdrawalProgress);
-                
-                TextView progressLabel = new TextView(this);
-                progressLabel.setText("Progresso verso soglia prelievo €5.00");
-                progressLabel.setTextSize(12);
-                progressLabel.setTextColor(Color.parseColor("#888888"));
-                progressLabel.setPadding(0, 5, 0, 0);
-                parent.addView(progressLabel);
+                LinearLayout.LayoutParams withdrawParams = new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+                withdrawParams.setMargins(0, 15, 0, 0);
+                withdrawButton.setLayoutParams(withdrawParams);
+                parent.addView(withdrawButton);
             }
             
             private LinearLayout createPaymentCard(String title, String value, String color) {
@@ -334,7 +738,7 @@ sensorManager.registerListener(this, accelerometer, SensorManager.SENSOR_DELAY_N
                 
                 TextView titleView = new TextView(this);
                 titleView.setText(title);
-                titleView.setTextSize(11);
+                titleView.setTextSize(12);
                 titleView.setTextColor(Color.WHITE);
                 card.addView(titleView);
                 
@@ -359,7 +763,7 @@ sensorManager.registerListener(this, accelerometer, SensorManager.SENSOR_DELAY_N
                 parent.addView(sectionTitle);
                 
                 statusText = new TextView(this);
-                statusText.setText("🔍 Pronto per rilevare opportunità di guadagno...");
+                statusText.setText("Pronto per rilevare opportunità di guadagno...");
                 statusText.setTextSize(16);
                 statusText.setTextColor(Color.WHITE);
                 statusText.setPadding(25, 20, 25, 20);
@@ -396,20 +800,6 @@ sensorManager.registerListener(this, accelerometer, SensorManager.SENSOR_DELAY_N
                 parent.addView(opportunitiesContainer);
             }
             
-            private void createTransactionsSection(LinearLayout parent) {
-                TextView sectionTitle = new TextView(this);
-                sectionTitle.setText("📊 Transazioni Recenti");
-                sectionTitle.setTextSize(20);
-                sectionTitle.setTextColor(Color.WHITE);
-                sectionTitle.setTypeface(sectionTitle.getTypeface(), Typeface.BOLD);
-                sectionTitle.setPadding(0, 25, 0, 15);
-                parent.addView(sectionTitle);
-                
-                transactionsContainer = new LinearLayout(this);
-                transactionsContainer.setOrientation(LinearLayout.VERTICAL);
-                parent.addView(transactionsContainer);
-            }
-            
             private void refreshOpportunities() {
                 opportunitiesContainer.removeAllViews();
                 List<ContentOpportunity> content = contentManager.getPersonalizedContent(null, 5);
@@ -417,8 +807,6 @@ sensorManager.registerListener(this, accelerometer, SensorManager.SENSOR_DELAY_N
                 for (ContentOpportunity opportunity : content) {
                     addOpportunityCard(opportunity);
                 }
-                
-                updateTransactions();
             }
             
             private void addOpportunityCard(ContentOpportunity opportunity) {
@@ -446,85 +834,24 @@ sensorManager.registerListener(this, accelerometer, SensorManager.SENSOR_DELAY_N
                 descView.setPadding(0, 5, 0, 10);
                 card.addView(descView);
                 
-                LinearLayout metaLayout = new LinearLayout(this);
-                metaLayout.setOrientation(LinearLayout.HORIZONTAL);
-                
                 TextView earningView = new TextView(this);
-                earningView.setText("💰 " + opportunity.getFormattedEarning());
+                earningView.setText("💰 " + opportunity.getFormattedEarning() + " • ⏱️ " + opportunity.getFormattedDuration());
                 earningView.setTextSize(15);
                 earningView.setTextColor(Color.WHITE);
                 earningView.setTypeface(earningView.getTypeface(), Typeface.BOLD);
-                metaLayout.addView(earningView);
-                
-                TextView durationView = new TextView(this);
-                durationView.setText(" • ⏱️ " + opportunity.getFormattedDuration());
-                durationView.setTextSize(14);
-                durationView.setTextColor(Color.parseColor("#f0f0f0"));
-                metaLayout.addView(durationView);
-                
-                card.addView(metaLayout);
+                card.addView(earningView);
                 
                 card.setOnClickListener(v -> {
                     boolean completed = contentManager.completeOpportunity(opportunity);
                     if (completed) {
                         updatePaymentStats();
                         refreshOpportunities();
-                        statusText.setText("✅ Guadagnati: " + opportunity.getFormattedEarning() + 
-                                         " da " + opportunity.title);
+                        statusText.setText("✅ Guadagnati: " + opportunity.getFormattedEarning() + " da " + opportunity.title);
                         statusText.setBackgroundColor(Color.parseColor("#00ff88"));
                     }
                 });
                 
                 opportunitiesContainer.addView(card);
-            }
-            
-            private void updateTransactions() {
-                transactionsContainer.removeAllViews();
-                List<Transaction> transactions = paymentManager.getRecentTransactions(5);
-                
-                for (Transaction transaction : transactions) {
-                    addTransactionCard(transaction);
-                }
-            }
-            
-            private void addTransactionCard(Transaction transaction) {
-                LinearLayout card = new LinearLayout(this);
-                card.setOrientation(LinearLayout.HORIZONTAL);
-                card.setPadding(20, 15, 20, 15);
-                card.setBackgroundColor(Color.parseColor("#2c3e50"));
-                
-                LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-                params.setMargins(0, 0, 0, 8);
-                card.setLayoutParams(params);
-                
-                LinearLayout leftLayout = new LinearLayout(this);
-                leftLayout.setOrientation(LinearLayout.VERTICAL);
-                leftLayout.setLayoutParams(new LinearLayout.LayoutParams(0, 
-                    LinearLayout.LayoutParams.WRAP_CONTENT, 1.0f));
-                
-                TextView descView = new TextView(this);
-                descView.setText(transaction.description);
-                descView.setTextSize(14);
-                descView.setTextColor(Color.WHITE);
-                leftLayout.addView(descView);
-                
-                TextView timeView = new TextView(this);
-                timeView.setText(transaction.timestamp);
-                timeView.setTextSize(12);
-                timeView.setTextColor(Color.parseColor("#95a5a6"));
-                timeView.setPadding(0, 2, 0, 0);
-                leftLayout.addView(timeView);
-                
-                TextView amountView = new TextView(this);
-                amountView.setText("+€" + String.format("%.2f", transaction.amount));
-                amountView.setTextSize(16);
-                amountView.setTextColor(Color.parseColor("#00ff88"));
-                amountView.setTypeface(amountView.getTypeface(), Typeface.BOLD);
-                
-                card.addView(leftLayout);
-                card.addView(amountView);
-                transactionsContainer.addView(card);
             }
             
             private void updatePaymentStats() {
@@ -533,13 +860,7 @@ sensorManager.registerListener(this, accelerometer, SensorManager.SENSOR_DELAY_N
                 totalEarningsText.setText("€" + String.format("%.2f", stats.totalEarnings));
                 double available = stats.totalEarnings - stats.pendingPayouts;
                 availableBalanceText.setText("€" + String.format("%.2f", available));
-                withdrawnAmountText.setText("€" + String.format("%.2f", stats.withdrawnAmount));
                 
-                // Update withdrawal progress (goal: €5)
-                int progress = (int) ((available / 5.0) * 100);
-                withdrawalProgress.setProgress(Math.min(progress, 100));
-                
-                // Update withdrawal button
                 withdrawButton.setEnabled(paymentManager.canWithdraw());
                 withdrawButton.setBackgroundColor(Color.parseColor(
                     paymentManager.canWithdraw() ? "#27ae60" : "#7f8c8d"));
@@ -591,18 +912,15 @@ sensorManager.registerListener(this, accelerometer, SensorManager.SENSOR_DELAY_N
             
             private void toggleDetection() {
                 if (!detectionActive) {
-                    Intent serviceIntent = new Intent(this, DeadTimeDetectionService.class);
-                    startService(serviceIntent);
-                    
                     detectionActive = true;
                     startDetectionButton.setText("⏹️ Ferma Money Detection");
                     startDetectionButton.setBackgroundColor(Color.parseColor("#e74c3c"));
                     statusText.setText("🟢 Money Detection ATTIVO - Cercando opportunità...");
                     statusText.setBackgroundColor(Color.parseColor("#00ff88"));
-                } else {
-                    Intent serviceIntent = new Intent(this, DeadTimeDetectionService.class);
-                    stopService(serviceIntent);
                     
+                    // Simulate money earning every 30 seconds
+                    simulateMoneyEarning();
+                } else {
                     detectionActive = false;
                     startDetectionButton.setText("🚀 Avvia Money Detection");
                     startDetectionButton.setBackgroundColor(Color.parseColor("#00ff88"));
@@ -611,28 +929,40 @@ sensorManager.registerListener(this, accelerometer, SensorManager.SENSOR_DELAY_N
                 }
             }
             
-            private void handleMoneyEarnedIntent() {
-                Intent intent = getIntent();
-                if (intent.getBooleanExtra("moneyEarned", true)) {
-                    detectionCount = intent.getIntExtra("detectionCount", 0);
-                    String contentTitle = intent.getStringExtra("contentTitle");
-                    double contentEarning = intent.getDoubleExtra("contentEarning", 0.0);
-                    
-                    statusText.setText("💰 SOLDI GUADAGNATI! (#" + detectionCount + ") €" + 
-                                     String.format("%.2f", contentEarning));
-                    statusText.setBackgroundColor(Color.parseColor("#00ff88"));
-                    
-                    updatePaymentStats();
-                    refreshOpportunities();
+            private void simulateMoneyEarning() {
+                if (detectionActive) {
+                    new Thread(() -> {
+                        try {
+                            Thread.sleep(30000); // Wait 30 seconds
+                            
+                            if (detectionActive) {
+                                runOnUiThread(() -> {
+                                    ContentOpportunity highValue = contentManager.getHighValueContent(null);
+                                    if (highValue != null) {
+                                        boolean completed = contentManager.completeOpportunity(highValue);
+                                        if (completed) {
+                                            updatePaymentStats();
+                                            refreshOpportunities();
+                                            statusText.setText("💰 SOLDI GUADAGNATI! " + highValue.getFormattedEarning());
+                                            statusText.setBackgroundColor(Color.parseColor("#00ff88"));
+                                        }
+                                    }
+                                    
+                                    // Continue simulation
+                                    simulateMoneyEarning();
+                                });
+                            }
+                        } catch (InterruptedException e) {
+                            Log.e(TAG, "Simulation interrupted", e);
+                        }
+                    }).start();
                 }
             }
             
             private void requestNecessaryPermissions() {
                 String[] permissions = {
                     Manifest.permission.ACCESS_FINE_LOCATION,
-                    Manifest.permission.ACCESS_COARSE_LOCATION,
-                    Manifest.permission.ACCESS_BACKGROUND_LOCATION,
-                    Manifest.permission.POST_NOTIFICATIONS
+                    Manifest.permission.ACCESS_COARSE_LOCATION
                 };
                 
                 boolean needsPermission = false;
@@ -649,38 +979,17 @@ sensorManager.registerListener(this, accelerometer, SensorManager.SENSOR_DELAY_N
             }
             
             @Override
-            public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
-                super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-                if (requestCode == PERMISSION_REQUEST_CODE) {
-                    boolean allGranted = true;
-                    for (int result : grantResults) {
-                        if (result != PackageManager.PERMISSION_GRANTED) {
-                            allGranted = false;
-                            break;
-                        }
-                    }
-                    
-                    if (allGranted) {
-                        statusText.setText("✅ Permessi concessi - Money Detection pronto!");
-                        statusText.setBackgroundColor(Color.parseColor("#00ff88"));
-                    } else {
-                        statusText.setText("⚠️ Permessi limitati - Alcune funzioni disabilitate");
-                        statusText.setBackgroundColor(Color.parseColor("#f39c12"));
-                    }
-                }
-            }
-            
-            @Override
             protected void onResume() {
                 super.onResume();
                 updatePaymentStats();
                 refreshOpportunities();
             }
         }
-        MAIN_EOF
-        
-        # 6. APPLICATION CLASS
-        cat > java/com/deadtime/MainApplication.java << 'APP_EOF'
+        MAEOF
+
+    - name: 🔧 Create MainApplication.java
+      run: |
+        cat > android/app/src/main/java/com/deadtime/MainApplication.java << 'APPEOF'
         package com.deadtime;
         
         import android.app.Application;
@@ -692,18 +1001,17 @@ sensorManager.registerListener(this, accelerometer, SensorManager.SENSOR_DELAY_N
             @Override
             public void onCreate() {
                 super.onCreate();
-                Log.d(TAG, "🚀 DeadTime Payment System Started");
-                Log.d(TAG, "💳 Features: Real Payments, Geo-Targeting, Advanced Detection");
+                Log.d(TAG, "DeadTime Payment System Started");
+                Log.d(TAG, "Features: Real Payments, Geo-Targeting, AI Detection");
             }
         }
-        APP_EOF
+        APPEOF
 
-    - name: 📱 Create Enhanced Android Configuration
+    - name: 📱 Create Android Configuration
       run: |
         cd android
         
-        # Root build.gradle
-        cat > build.gradle << 'BUILD_EOF'
+        cat > build.gradle << 'BUILDEOF'
         buildscript {
             ext {
                 buildToolsVersion = "33.0.0"
@@ -731,17 +1039,15 @@ sensorManager.registerListener(this, accelerometer, SensorManager.SENSOR_DELAY_N
         task clean(type: Delete) {
             delete rootProject.buildDir
         }
-        BUILD_EOF
+        BUILDEOF
         
-        # settings.gradle
-        cat > settings.gradle << 'SETTINGS_EOF'
+        cat > settings.gradle << 'SETTINGSEOF'
         rootProject.name = 'DeadTime'
         include ':app'
-        SETTINGS_EOF
+        SETTINGSEOF
         
-        # app/build.gradle
         cd app
-        cat > build.gradle << 'GRADLE_EOF'
+        cat > build.gradle << 'GRADLEEOF'
         apply plugin: "com.android.application"
         
         android {
@@ -789,86 +1095,54 @@ sensorManager.registerListener(this, accelerometer, SensorManager.SENSOR_DELAY_N
             implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
             implementation 'com.google.android.material:material:1.8.0'
             implementation 'androidx.core:core:1.9.0'
-            implementation 'androidx.work:work-runtime:2.8.1'
-            implementation 'androidx.preference:preference:1.2.0'
             testImplementation 'junit:junit:4.13.2'
             androidTestImplementation 'androidx.test.ext:junit:1.1.5'
             androidTestImplementation 'androidx.test.espresso:espresso-core:3.5.1'
         }
-        GRADLE_EOF
+        GRADLEEOF
 
-    - name: 📲 Create Payment System Manifest & Resources
+    - name: 📲 Create Android Manifest & Resources
       run: |
         cd android/app/src/main
         
-        # Enhanced AndroidManifest.xml
-        cat > AndroidManifest.xml << 'MANIFEST_EOF'
+        cat > AndroidManifest.xml << 'MANIFESTEOF'
         <manifest xmlns:android="http://schemas.android.com/apk/res/android"
             package="com.deadtime">
 
-            <!-- DEADTIME PAYMENT SYSTEM PERMISSIONS -->
             <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
             <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
-            <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
             <uses-permission android:name="android.permission.INTERNET" />
-            <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
-            <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-            <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-            <uses-permission android:name="android.permission.VIBRATE" />
-            <uses-permission android:name="android.permission.WAKE_LOCK" />
-            <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
-            
-            <!-- HARDWARE FEATURES -->
-            <uses-feature android:name="android.hardware.location" android:required="true" />
-            <uses-feature android:name="android.hardware.location.gps" android:required="true" />
-            <uses-feature android:name="android.hardware.sensor.accelerometer" android:required="true" />
 
             <application
               android:name=".MainApplication"
               android:allowBackup="false"
               android:theme="@style/DeadTimePaymentTheme"
-              android:label="@string/app_name"
-              android:requestLegacyExternalStorage="true">
+              android:label="@string/app_name">
               
-              <!-- MAIN PAYMENT ACTIVITY -->
               <activity
                 android:name=".MainActivity"
                 android:exported="true"
                 android:screenOrientation="portrait"
-                android:theme="@style/DeadTimePaymentTheme"
-                android:launchMode="singleTop">
+                android:theme="@style/DeadTimePaymentTheme">
                 <intent-filter>
                     <action android:name="android.intent.action.MAIN" />
                     <category android:name="android.intent.category.LAUNCHER" />
                 </intent-filter>
               </activity>
               
-              <!-- PAYMENT-ENABLED DETECTION SERVICE -->
-              <service 
-                android:name=".DeadTimeDetectionService"
-                android:enabled="true"
-                android:exported="false"
-                android:foregroundServiceType="location" />
-              
             </application>
         </manifest>
-        MANIFEST_EOF
+        MANIFESTEOF
         
-        # Payment System resources
         mkdir -p res/values
-        cat > res/values/strings.xml << 'STRINGS_EOF'
+        cat > res/values/strings.xml << 'STRINGSEOF'
         <resources>
             <string name="app_name">DeadTime</string>
             <string name="app_description">Real Money from Dead Time</string>
-            <string name="payment_channel_name">DeadTime Money Notifications</string>
-            <string name="payment_channel_description">Notifiche per soldi guadagnati</string>
-            <string name="withdrawal_success">Prelievo elaborato con successo</string>
-            <string name="withdrawal_error">Errore durante il prelievo</string>
-            <string name="minimum_withdrawal">Importo minimo per prelievo: €5.00</string>
         </resources>
-        STRINGS_EOF
+        STRINGSEOF
         
-        cat > res/values/styles.xml << 'STYLES_EOF'
+        cat > res/values/styles.xml << 'STYLESEOF'
         <resources>
             <style name="DeadTimePaymentTheme" parent="Theme.AppCompat.Light.NoActionBar">
                 <item name="android:statusBarColor">#0a0a1a</item>
@@ -879,31 +1153,9 @@ sensorManager.registerListener(this, accelerometer, SensorManager.SENSOR_DELAY_N
                 <item name="colorAccent">#00ff88</item>
                 <item name="android:textColorPrimary">#ffffff</item>
                 <item name="android:textColorSecondary">#888888</item>
-                <item name="android:buttonStyle">@style/DeadTimeButton</item>
-            </style>
-            
-            <style name="DeadTimeButton" parent="Widget.AppCompat.Button">
-                <item name="android:textColor">#ffffff</item>
-                <item name="android:background">#00ff88</item>
-                <item name="android:textAllCaps">false</item>
             </style>
         </resources>
-        EOF
-        
-        # Create app icon resources
-        mkdir -p res/mipmap-mdpi res/mipmap-hdpi res/mipmap-xhdpi res/mipmap-xxhdpi res/mipmap-xxxhdpi
-        
-        # Simple green money icon (base64 encoded PNG)
-        echo "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChAGA60e6kgAAAABJRU5ErkJggg==" | base64 -d > res/mipmap-mdpi/ic_launcher.png
-        cp res/mipmap-mdpi/ic_launcher.png res/mipmap-mdpi/ic_launcher_round.png
-        cp res/mipmap-mdpi/ic_launcher.png res/mipmap-hdpi/ic_launcher.png
-        cp res/mipmap-mdpi/ic_launcher.png res/mipmap-hdpi/ic_launcher_round.png
-        cp res/mipmap-mdpi/ic_launcher.png res/mipmap-xhdpi/ic_launcher.png  
-        cp res/mipmap-mdpi/ic_launcher.png res/mipmap-xhdpi/ic_launcher_round.png
-        cp res/mipmap-mdpi/ic_launcher.png res/mipmap-xxhdpi/ic_launcher.png
-        cp res/mipmap-mdpi/ic_launcher.png res/mipmap-xxhdpi/ic_launcher_round.png
-        cp res/mipmap-mdpi/ic_launcher.png res/mipmap-xxxhdpi/ic_launcher.png
-        cp res/mipmap-mdpi/ic_launcher.png res/mipmap-xxxhdpi/ic_launcher_round.png
+        STYLESEOF
 
     - name: 🔑 Create Debug Keystore
       run: |
@@ -945,778 +1197,4 @@ sensorManager.registerListener(this, accelerometer, SensorManager.SENSOR_DELAY_N
       uses: actions/upload-artifact@v4
       with:
         name: deadtime-payment-system-geo-targeting-apk
-        path: android/app/build/outputs/apk/debug/app-debug.apk        
-        # 4. ENHANCED DETECTION SERVICE with Payment Integration
-        cat > java/com/deadtime/DeadTimeDetectionService.java << 'EOF'
-        package com.deadtime;
-        
-        import android.app.Service;
-        import android.app.NotificationManager;
-        import android.app.NotificationChannel;
-        import android.app.PendingIntent;
-        import android.content.Intent;
-        import android.content.Context;
-        import android.location.Location;
-        import android.location.LocationListener;
-        import android.location.LocationManager;
-        import android.hardware.Sensor;
-        import android.hardware.SensorEvent;
-        import android.hardware.SensorEventListener;
-        import android.hardware.SensorManager;
-        import android.os.IBinder;
-        import android.os.Handler;
-        import android.os.Looper;
-        import android.util.Log;
-        import androidx.core.app.NotificationCompat;
-        import java.util.ArrayList;
-        import java.util.List;
-        
-        public class DeadTimeDetectionService extends Service implements LocationListener, SensorEventListener {
-            private static final String TAG = "DeadTimeDetection";
-            private static final String CHANNEL_ID = "DeadTimeChannel";
-            
-            private LocationManager locationManager;
-            private SensorManager sensorManager;
-            private Sensor accelerometer;
-            private Handler handler;
-            private ContentManager contentManager;
-            
-            private Location lastLocation;
-            private long lastLocationTime;
-            private List<Float> accelerometerValues = new ArrayList<>();
-            private boolean isInDeadTime = false;
-            private long deadTimeStartTime;
-            private int detectionCount = 0;
-            
-            // Enhanced detection parameters
-            private static final float MOVEMENT_THRESHOLD = 1.5f;
-            private static final long LOCATION_STABLE_TIME = 120000; // 2 minutes
-            private static final int ACCELEROMETER_SAMPLES = 25;
-            
-            @Override
-            public void onCreate() {
-                super.onCreate();
-                Log.d(TAG, "🎯 Payment-Enabled Detection Service Created");
-                
-                handler = new Handler(Looper.getMainLooper());
-                locationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
-                sensorManager = (SensorManager) getSystemService(Context.SENSOR_SERVICE);
-                accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
-                contentManager = new ContentManager(this);
-                
-                createNotificationChannel();
-                startDetection();
-            }
-            
-            private void createNotificationChannel() {
-                NotificationChannel channel = new NotificationChannel(
-                    CHANNEL_ID,
-                    "DeadTime Money Opportunities",
-                    NotificationManager.IMPORTANCE_HIGH
-                );
-                channel.setDescription("Notifiche per opportunità di guadagno reale");
-                channel.enableVibration(true);
-                channel.setVibrationPattern(new long[]{0, 500, 200, 500});
-                
-                NotificationManager notificationManager = getSystemService(NotificationManager.class);
-                notificationManager.createNotificationChannel(channel);
-            }
-            
-            private void startDetection() {
-                try {
-                    locationManager.requestLocationUpdates(
-                        LocationManager.GPS_PROVIDER, 
-                        15000, // 15 seconds
-                        3, // 3 meters
-                        this
-                    );
-                    
-                    sensorManager.registerListener(this, accelerometer, Sensorname: DeadTime Step 3 - Payment System + Geo Targeting
-
-on:
-  push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
-
-jobs:
-  build:
-    runs-on: ubuntu-latest
-
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Setup Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '18'
-
-    - name: Setup Java
-      uses: actions/setup-java@v4
-      with:
-        distribution: 'temurin'
-        java-version: '17'
-
-    - name: Setup Android SDK
-      uses: android-actions/setup-android@v3
-
-    - name: Setup Android NDK
-      uses: nttld/setup-ndk@v1
-      with:
-        ndk-version: r23c
-        
-    - name: Set NDK environment variables
-      run: |
-        echo "ANDROID_NDK_ROOT=$ANDROID_NDK_HOME" >> $GITHUB_ENV
-        echo "ANDROID_NDK_HOME=$ANDROID_NDK_HOME" >> $GITHUB_ENV
-        echo "NDK_HOME=$ANDROID_NDK_HOME" >> $GITHUB_ENV
-
-    - name: 🧹 Clean Previous Build
-      run: |
-        rm -rf node_modules
-        rm -rf package-lock.json
-        rm -rf android/app/src/main/java/
-
-    - name: 💳 Create Payment System + Geo Targeting
-      run: |
-        cd android/app/src/main
-        
-        mkdir -p java/com/deadtime
-        
-        # 1. PAYMENT MANAGER - Handles earnings and payouts
-        cat > java/com/deadtime/PaymentManager.java << 'PAYMENT_EOF'
-        package com.deadtime;
-        
-        import android.content.Context;
-        import android.content.SharedPreferences;
-        import android.util.Log;
-        import java.util.ArrayList;
-        import java.util.List;
-        import java.util.Date;
-        import java.text.SimpleDateFormat;
-        import java.util.Locale;
-        
-        public class PaymentManager {
-            private static final String TAG = "PaymentManager";
-            private static final String PREFS_NAME = "DeadTimePayments";
-            private Context context;
-            private SharedPreferences prefs;
-            
-            public PaymentManager(Context context) {
-                this.context = context;
-                this.prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
-            }
-            
-            public void addEarning(double amount, String source, String description) {
-                double currentBalance = getTotalEarnings();
-                double newBalance = currentBalance + amount;
-                
-                // Save transaction
-                String timestamp = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(new Date());
-                String transactionKey = "transaction_" + System.currentTimeMillis();
-                
-                SharedPreferences.Editor editor = prefs.edit();
-                editor.putFloat("total_earnings", (float) newBalance);
-                editor.putString(transactionKey + "_amount", String.valueOf(amount));
-                editor.putString(transactionKey + "_source", source);
-                editor.putString(transactionKey + "_description", description);
-                editor.putString(transactionKey + "_timestamp", timestamp);
-                editor.putBoolean(transactionKey + "_pending", true);
-                editor.apply();
-                
-                Log.d(TAG, "💰 Earning added: €" + String.format("%.2f", amount) + 
-                           " from " + source + " (Total: €" + String.format("%.2f", newBalance) + ")");
-            }
-            
-            public double getTotalEarnings() {
-                return prefs.getFloat("total_earnings", 0.0f);
-            }
-            
-            public double getPendingPayouts() {
-                return prefs.getFloat("pending_payouts", 0.0f);
-            }
-            
-            public double getWithdrawnAmount() {
-                return prefs.getFloat("withdrawn_amount", 0.0f);
-            }
-            
-            public boolean canWithdraw() {
-                return getTotalEarnings() >= 5.0; // Minimum €5 for withdrawal
-            }
-            
-            public WithdrawalResult requestWithdrawal(String paymentMethod, String accountDetails) {
-                double availableAmount = getTotalEarnings() - getPendingPayouts();
-                
-                if (!canWithdraw()) {
-                    return new WithdrawalResult(false, "Importo minimo per prelievo: €5.00", 0.0);
-                }
-                
-                if (availableAmount < 5.0) {
-                    return new WithdrawalResult(false, "Prelievi in corso. Disponibile: €" + 
-                                              String.format("%.2f", availableAmount), 0.0);
-                }
-                
-                // Simulate payment processing
-                double withdrawAmount = availableAmount;
-                double currentPending = getPendingPayouts();
-                double currentWithdrawn = getWithdrawnAmount();
-                
-                SharedPreferences.Editor editor = prefs.edit();
-                editor.putFloat("pending_payouts", (float) (currentPending + withdrawAmount));
-                
-                // Create withdrawal record
-                String timestamp = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(new Date());
-                String withdrawalKey = "withdrawal_" + System.currentTimeMillis();
-                editor.putString(withdrawalKey + "_amount", String.valueOf(withdrawAmount));
-                editor.putString(withdrawalKey + "_method", paymentMethod);
-                editor.putString(withdrawalKey + "_account", accountDetails);
-                editor.putString(withdrawalKey + "_timestamp", timestamp);
-                editor.putString(withdrawalKey + "_status", "PROCESSING");
-                editor.apply();
-                
-                // Simulate processing delay (in real app, this would be async)
-                processWithdrawalAsync(withdrawalKey, withdrawAmount);
-                
-                Log.d(TAG, "💳 Withdrawal requested: €" + String.format("%.2f", withdrawAmount) + 
-                           " via " + paymentMethod);
-                
-                return new WithdrawalResult(true, "Prelievo in elaborazione. Riceverai €" + 
-                                          String.format("%.2f", withdrawAmount) + " entro 24-48 ore.", withdrawAmount);
-            }
-            
-            private void processWithdrawalAsync(String withdrawalKey, double amount) {
-                // Simulate payment processing (in real app, this would be API call)
-                new Thread(() -> {
-                    try {
-                        Thread.sleep(3000); // Simulate processing time
-                        
-                        SharedPreferences.Editor editor = prefs.edit();
-                        editor.putString(withdrawalKey + "_status", "COMPLETED");
-                        
-                        // Move from pending to withdrawn
-                        double currentPending = getPendingPayouts();
-                        double currentWithdrawn = getWithdrawnAmount();
-                        editor.putFloat("pending_payouts", (float) (currentPending - amount));
-                        editor.putFloat("withdrawn_amount", (float) (currentWithdrawn + amount));
-                        editor.apply();
-                        
-                        Log.d(TAG, "✅ Withdrawal completed: €" + String.format("%.2f", amount));
-                    } catch (InterruptedException e) {
-                        Log.e(TAG, "Withdrawal processing interrupted", e);
-                    }
-                }).start();
-            }
-            
-            public List<Transaction> getRecentTransactions(int limit) {
-                List<Transaction> transactions = new ArrayList<>();
-                
-                // Get all transaction keys
-                for (String key : prefs.getAll().keySet()) {
-                    if (key.startsWith("transaction_") && key.endsWith("_amount")) {
-                        String baseKey = key.replace("_amount", "");
-                        
-                        String amountStr = prefs.getString(baseKey + "_amount", "0");
-                        String source = prefs.getString(baseKey + "_source", "Unknown");
-                        String description = prefs.getString(baseKey + "_description", "");
-                        String timestamp = prefs.getString(baseKey + "_timestamp", "");
-                        
-                        try {
-                            double amount = Double.parseDouble(amountStr);
-                            transactions.add(new Transaction(amount, source, description, timestamp, "COMPLETED"));
-                        } catch (NumberFormatException e) {
-                            Log.w(TAG, "Invalid transaction amount: " + amountStr);
-                        }
-                    }
-                }
-                
-                // Sort by timestamp (most recent first) and limit results
-                transactions.sort((t1, t2) -> t2.timestamp.compareTo(t1.timestamp));
-                return transactions.subList(0, Math.min(limit, transactions.size()));
-            }
-            
-            public PaymentStats getPaymentStats() {
-                return new PaymentStats(
-                    getTotalEarnings(),
-                    getPendingPayouts(), 
-                    getWithdrawnAmount(),
-                    getRecentTransactions(50).size()
-                );
-            }
-        }
-        
-        // Data classes
-        class WithdrawalResult {
-            public boolean success;
-            public String message;
-            public double amount;
-            
-            public WithdrawalResult(boolean success, String message, double amount) {
-                this.success = success;
-                this.message = message;
-                this.amount = amount;
-            }
-        }
-        
-        class Transaction {
-            public double amount;
-            public String source;
-            public String description;
-            public String timestamp;
-            public String status;
-            
-            public Transaction(double amount, String source, String description, String timestamp, String status) {
-                this.amount = amount;
-                this.source = source;
-                this.description = description;
-                this.timestamp = timestamp;
-                this.status = status;
-            }
-        }
-        
-        class PaymentStats {
-            public double totalEarnings;
-            public double pendingPayouts;
-            public double withdrawnAmount;
-            public int transactionCount;
-            
-            public PaymentStats(double totalEarnings, double pendingPayouts, double withdrawnAmount, int transactionCount) {
-                this.totalEarnings = totalEarnings;
-                this.pendingPayouts = pendingPayouts;
-                this.withdrawnAmount = withdrawnAmount;
-                this.transactionCount = transactionCount;
-            }
-        }
-        PAYMENT_EOF
-        
-        # 2. GEO TARGETING MANAGER - Location-based content
-        cat > java/com/deadtime/GeoTargetingManager.java << 'GEO_EOF'
-        package com.deadtime;
-        
-        import android.location.Location;
-        import android.util.Log;
-        import java.util.ArrayList;
-        import java.util.List;
-        import java.util.Random;
-        
-        public class GeoTargetingManager {
-            private static final String TAG = "GeoTargeting";
-            private List<LocalBusiness> businesses;
-            private Random random = new Random();
-            
-            public GeoTargetingManager() {
-                initializeLocalBusinesses();
-            }
-            
-            private void initializeLocalBusinesses() {
-                businesses = new ArrayList<>();
-                
-                // Milan area businesses (example coordinates)
-                businesses.add(new LocalBusiness(
-                    "🍕 Pizzeria Da Gino",
-                    "Nuova pizza al tartufo - Sconto 20%",
-                    45.4642, 9.1900, // Milan coordinates
-                    500, // 500m radius
-                    7.50,
-                    "RESTAURANT",
-                    "Prova la nostra nuova pizza gourmet"
-                ));
-                
-                businesses.add(new LocalBusiness(
-                    "☕ Caffè Centrale",
-                    "Cappuccino + Cornetto = €3.50",
-                    45.4654, 9.1859,
-                    300,
-                    2.80,
-                    "CAFE",
-                    "Colazione italiana autentica"
-                ));
-                
-                businesses.add(new LocalBusiness(
-                    "👔 Boutique Milano",
-                    "Saldi fino al 50% - Collezione inverno",
-                    45.4676, 9.1926,
-                    800,
-                    12.30,
-                    "FASHION",
-                    "Shopping di lusso nel quadrilatero"
-                ));
-                
-                businesses.add(new LocalBusiness(
-                    "💊 Farmacia San Raffaele",
-                    "Consulenza gratuita + prodotti wellness",
-                    45.4633, 9.1817,
-                    200,
-                    4.20,
-                    "HEALTHCARE",
-                    "Vicino all'ospedale San Raffaele"
-                ));
-                
-                businesses.add(new LocalBusiness(
-                    "🏋️ FitZone Gym",
-                    "Prova gratuita + scheda personalizzata",
-                    45.4687, 9.1834,
-                    600,
-                    8.90,
-                    "FITNESS",
-                    "Il tuo benessere è la nostra priorità"
-                ));
-                
-                businesses.add(new LocalBusiness(
-                    "📱 TechStore Pro",
-                    "iPhone 15 disponibile - Finanziamento 0%",
-                    45.4658, 9.1901,
-                    400,
-                    15.60,
-                    "TECHNOLOGY",
-                    "Ultima tecnologia Apple e Samsung"
-                ));
-                
-                businesses.add(new LocalBusiness(
-                    "🚗 AutoWash Express",
-                    "Lavaggio completo €12 (era €20)",
-                    45.4621, 9.1888,
-                    1000,
-                    3.40,
-                    "AUTOMOTIVE",
-                    "Lavaggio auto ecologico in 15 minuti"
-                ));
-                
-                businesses.add(new LocalBusiness(
-                    "🎬 Cinema Odeon",
-                    "Film in prima visione - Biglietto €6.50",
-                    45.4667, 9.1912,
-                    350,
-                    5.10,
-                    "ENTERTAINMENT",
-                    "Esperienza cinematografica premium"
-                ));
-                
-                Log.d(TAG, "✅ Loaded " + businesses.size() + " local businesses");
-            }
-            
-            public List<LocalBusiness> getNearbyBusinesses(Location userLocation, double maxDistanceKm) {
-                List<LocalBusiness> nearby = new ArrayList<>();
-                
-                if (userLocation == null) {
-                    Log.w(TAG, "⚠️ User location is null, returning random businesses");
-                    // Return random businesses if location not available
-                    for (int i = 0; i < 3; i++) {
-                        if (i < businesses.size()) {
-                            nearby.add(businesses.get(random.nextInt(businesses.size())));
-                        }
-                    }
-                    return nearby;
-                }
-                
-                for (LocalBusiness business : businesses) {
-                    double distance = calculateDistance(
-                        userLocation.getLatitude(), userLocation.getLongitude(),
-                        business.latitude, business.longitude
-                    );
-                    
-                    if (distance <= maxDistanceKm) {
-                        business.distanceFromUser = distance;
-                        nearby.add(business);
-                        Log.d(TAG, "📍 Found nearby business: " + business.name + 
-                                   " (" + String.format("%.2f", distance) + "km away)");
-                    }
-                }
-                
-                // Sort by distance
-                nearby.sort((b1, b2) -> Double.compare(b1.distanceFromUser, b2.distanceFromUser));
-                
-                // Add distance bonus to earnings (closer = more valuable)
-                for (LocalBusiness business : nearby) {
-                    double distanceBonus = Math.max(0, (1.0 - business.distanceFromUser) * 2.0);
-                    business.earning += distanceBonus;
-                }
-                
-                Log.d(TAG, "🎯 Found " + nearby.size() + " businesses within " + maxDistanceKm + "km");
-                return nearby;
-            }
-            
-            public List<ContentOpportunity> getLocationBasedContent(Location userLocation) {
-                List<ContentOpportunity> locationContent = new ArrayList<>();
-                List<LocalBusiness> nearbyBusinesses = getNearbyBusinesses(userLocation, 2.0); // 2km radius
-                
-                for (LocalBusiness business : nearbyBusinesses) {
-                    ContentOpportunity opportunity = new ContentOpportunity(
-                        business.name,
-                        business.description + " (A " + String.format("%.0f", business.distanceFromUser * 1000) + "m da te)",
-                        business.earning,
-                        180, // 3 minutes average
-                        ContentType.LOCAL_DEMO,
-                        getBusinessColor(business.category),
-                        "geo://" + business.latitude + "," + business.longitude
-                    );
-                    
-                    locationContent.add(opportunity);
-                }
-                
-                Log.d(TAG, "📍 Generated " + locationContent.size() + " location-based opportunities");
-                return locationContent;
-            }
-            
-            private double calculateDistance(double lat1, double lon1, double lat2, double lon2) {
-                // Haversine formula
-                final int R = 6371; // Radius of the Earth in km
-                
-                double latDistance = Math.toRadians(lat2 - lat1);
-                double lonDistance = Math.toRadians(lon2 - lon1);
-                double a = Math.sin(latDistance / 2) * Math.sin(latDistance / 2)
-                        + Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2))
-                        * Math.sin(lonDistance / 2) * Math.sin(lonDistance / 2);
-                double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-                
-                return R * c; // Distance in km
-            }
-            
-            private String getBusinessColor(String category) {
-                switch (category) {
-                    case "RESTAURANT": return "#e74c3c";
-                    case "CAFE": return "#8b4513";
-                    case "FASHION": return "#e91e63";
-                    case "HEALTHCARE": return "#2ecc71";
-                    case "FITNESS": return "#f39c12";
-                    case "TECHNOLOGY": return "#3498db";
-                    case "AUTOMOTIVE": return "#34495e";
-                    case "ENTERTAINMENT": return "#9b59b6";
-                    default: return "#7f8c8d";
-                }
-            }
-        }
-        
-        class LocalBusiness {
-            public String name;
-            public String description;
-            public double latitude;
-            public double longitude;
-            public int radiusMeters;
-            public double earning;
-            public String category;
-            public String offer;
-            public double distanceFromUser;
-            
-            public LocalBusiness(String name, String description, double latitude, double longitude,
-                               int radiusMeters, double earning, String category, String offer) {
-                this.name = name;
-                this.description = description;
-                this.latitude = latitude;
-                this.longitude = longitude;
-                this.radiusMeters = radiusMeters;
-                this.earning = earning;
-                this.category = category;
-                this.offer = offer;
-                this.distanceFromUser = 0.0;
-            }
-        }
-        GEO_EOF
-        
-        # 3. ENHANCED CONTENT MANAGER with Payment Integration
-        cat > java/com/deadtime/ContentManager.java << 'CONTENT_EOF'
-        package com.deadtime;
-        
-        import android.content.Context;
-        import android.location.Location;
-        import android.util.Log;
-        import java.util.ArrayList;
-        import java.util.List;
-        import java.util.Random;
-        
-        public class ContentManager {
-            private static final String TAG = "ContentManager";
-            private Context context;
-            private List<ContentOpportunity> availableContent;
-            private PaymentManager paymentManager;
-            private GeoTargetingManager geoManager;
-            private Random random = new Random();
-            
-            public ContentManager(Context context) {
-                this.context = context;
-                this.paymentManager = new PaymentManager(context);
-                this.geoManager = new GeoTargetingManager();
-                this.availableContent = new ArrayList<>();
-                loadContentLibrary();
-            }
-            
-            private void loadContentLibrary() {
-                // Enhanced content with better earnings
-                availableContent.add(new ContentOpportunity(
-                    "📺 Tesla Model 3 Demo", 
-                    "Esperienza di guida virtuale", 
-                    8.50, 
-                    240,
-                    ContentType.VIDEO,
-                    "#e74c3c",
-                    "Scopri la rivoluzione elettrica"
-                ));
-                
-                availableContent.add(new ContentOpportunity(
-                    "📊 Sondaggio Alimentazione", 
-                    "Le tue abitudini culinarie", 
-                    4.80, 
-                    180, 
-                    ContentType.SURVEY,
-                    "#3498db",
-                    "Aiuta la ricerca nutrizionale"
-                ));
-                
-                availableContent.add(new ContentOpportunity(
-                    "🎮 Puzzle Sponsorizzato", 
-                    "Mini-game interattivo", 
-                    3.20, 
-                    120, 
-                    ContentType.INTERACTIVE,
-                    "#f39c12",
-                    "Gioca e guadagna"
-                ));
-                
-                availableContent.add(new ContentOpportunity(
-                    "💄 Beauty Test Sephora", 
-                    "Nuova linea cosmetica", 
-                    6.70, 
-                    200, 
-                    ContentType.LOCAL_DEMO,
-                    "#e91e63",
-                    "Prova gratuita in store"
-                ));
-                
-                availableContent.add(new ContentOpportunity(
-                    "🏠 Tour Virtuale Immobili", 
-                    "Appartamenti di lusso Milano", 
-                    12.30, 
-                    300, 
-                    ContentType.VIDEO,
-                    "#16a085",
-                    "Investimenti immobiliari premium"
-                ));
-                
-                availableContent.add(new ContentOpportunity(
-                    "📱 iPhone 15 Pro Test", 
-                    "Prova le nuove funzionalità", 
-                    9.40, 
-                    180, 
-                    ContentType.INTERACTIVE,
-                    "#34495e",
-                    "Tecnologia all'avanguardia"
-                ));
-                
-                Log.d(TAG, "✅ Loaded " + availableContent.size() + " premium content opportunities");
-            }
-            
-            public List<ContentOpportunity> getPersonalizedContent(Location userLocation, int maxItems) {
-                List<ContentOpportunity> personalized = new ArrayList<>();
-                
-                // Add location-based content first (higher priority)
-                if (userLocation != null) {
-                    List<ContentOpportunity> locationContent = geoManager.getLocationBasedContent(userLocation);
-                    personalized.addAll(locationContent.subList(0, Math.min(2, locationContent.size())));
-                }
-                
-                // Add general content
-                List<ContentOpportunity> shuffled = new ArrayList<>(availableContent);
-                int remainingSlots = maxItems - personalized.size();
-                
-                for (int i = 0; i < Math.min(remainingSlots, shuffled.size()); i++) {
-                    int randomIndex = random.nextInt(shuffled.size());
-                    ContentOpportunity content = shuffled.remove(randomIndex);
-                    
-                    // Add dynamic pricing variation
-                    content.earning += (random.nextDouble() - 0.5) * 2.0; // ±€1.00 variation
-                    content.earning = Math.max(1.00, content.earning); // Minimum €1.00
-                    
-                    personalized.add(content);
-                }
-                
-                Log.d(TAG, "🎯 Generated " + personalized.size() + " personalized opportunities " +
-                           "(" + (userLocation != null ? "with geo-targeting" : "without location") + ")");
-                return personalized;
-            }
-            
-            public boolean completeOpportunity(ContentOpportunity opportunity) {
-                try {
-                    // Add earning to payment system
-                    paymentManager.addEarning(
-                        opportunity.earning,
-                        opportunity.type.toString(),
-                        opportunity.title
-                    );
-                    
-                    Log.d(TAG, "💰 Opportunity completed: " + opportunity.title + 
-                               " - Earned: €" + String.format("%.2f", opportunity.earning));
-                    
-                    return true;
-                } catch (Exception e) {
-                    Log.e(TAG, "❌ Error completing opportunity", e);
-                    return false;
-                }
-            }
-            
-            public PaymentManager getPaymentManager() {
-                return paymentManager;
-            }
-            
-            public ContentOpportunity getHighValueContent(Location userLocation) {
-                List<ContentOpportunity> allContent = getPersonalizedContent(userLocation, 10);
-                
-                ContentOpportunity bestContent = null;
-                double maxEarning = 0;
-                
-                for (ContentOpportunity content : allContent) {
-                    if (content.earning > maxEarning) {
-                        maxEarning = content.earning;
-                        bestContent = content;
-                    }
-                }
-                
-                if (bestContent != null) {
-                    // Add bonus for high-value detection
-                    bestContent.earning += random.nextDouble() * 3.0; // Up to €3 bonus
-                    Log.d(TAG, "💎 High-value content selected: " + bestContent.title + 
-                               " - €" + String.format("%.2f", bestContent.earning));
-                }
-                
-                return bestContent;
-            }
-        }
-        
-        // Enhanced Content Opportunity with payment integration
-        class ContentOpportunity {
-            public String title;
-            public String description;
-            public double earning;
-            public int durationSeconds;
-            public ContentType type;
-            public String color;
-            public String actionUrl;
-            
-            public ContentOpportunity(String title, String description, double earning, 
-                                    int durationSeconds, ContentType type, String color, String actionUrl) {
-                this.title = title;
-                this.description = description;
-                this.earning = earning;
-                this.durationSeconds = durationSeconds;
-                this.type = type;
-                this.color = color;
-                this.actionUrl = actionUrl;
-            }
-            
-            public String getFormattedDuration() {
-                int minutes = durationSeconds / 60;
-                int seconds = durationSeconds % 60;
-                return minutes > 0 ? minutes + "m " + seconds + "s" : seconds + "s";
-            }
-            
-            public String getFormattedEarning() {
-                return "€" + String.format("%.2f", earning);
-            }
-        }
-        
-        enum ContentType {
-            VIDEO,
-            SURVEY, 
-            INTERACTIVE,
-            LOCAL_DEMO
-        }
-        EOF
+        path: android/app/build/outputs/apk/debug/app-debug.apk
