@@ -138,10 +138,10 @@ sensorManager.registerListener(this, accelerometer, SensorManager.SENSOR_DELAY_N
                 Log.d(TAG, "🛑 Payment Detection Service Destroyed");
             }
         }
-        EOF
+        DETECTION_EOF
         
         # 5. MAIN ACTIVITY with Payment Dashboard
-        cat > java/com/deadtime/MainActivity.java << 'EOF'
+        cat > java/com/deadtime/MainActivity.java << 'MAIN_EOF'
         package com.deadtime;
         
         import androidx.appcompat.app.AppCompatActivity;
@@ -677,10 +677,10 @@ sensorManager.registerListener(this, accelerometer, SensorManager.SENSOR_DELAY_N
                 refreshOpportunities();
             }
         }
-        EOF
+        MAIN_EOF
         
         # 6. APPLICATION CLASS
-        cat > java/com/deadtime/MainApplication.java << 'EOF'
+        cat > java/com/deadtime/MainApplication.java << 'APP_EOF'
         package com.deadtime;
         
         import android.app.Application;
@@ -696,14 +696,14 @@ sensorManager.registerListener(this, accelerometer, SensorManager.SENSOR_DELAY_N
                 Log.d(TAG, "💳 Features: Real Payments, Geo-Targeting, Advanced Detection");
             }
         }
-        EOF
+        APP_EOF
 
     - name: 📱 Create Enhanced Android Configuration
       run: |
         cd android
         
         # Root build.gradle
-        cat > build.gradle << 'EOF'
+        cat > build.gradle << 'BUILD_EOF'
         buildscript {
             ext {
                 buildToolsVersion = "33.0.0"
@@ -731,17 +731,17 @@ sensorManager.registerListener(this, accelerometer, SensorManager.SENSOR_DELAY_N
         task clean(type: Delete) {
             delete rootProject.buildDir
         }
-        EOF
+        BUILD_EOF
         
         # settings.gradle
-        cat > settings.gradle << 'EOF'
+        cat > settings.gradle << 'SETTINGS_EOF'
         rootProject.name = 'DeadTime'
         include ':app'
-        EOF
+        SETTINGS_EOF
         
         # app/build.gradle
         cd app
-        cat > build.gradle << 'EOF'
+        cat > build.gradle << 'GRADLE_EOF'
         apply plugin: "com.android.application"
         
         android {
@@ -795,14 +795,14 @@ sensorManager.registerListener(this, accelerometer, SensorManager.SENSOR_DELAY_N
             androidTestImplementation 'androidx.test.ext:junit:1.1.5'
             androidTestImplementation 'androidx.test.espresso:espresso-core:3.5.1'
         }
-        EOF
+        GRADLE_EOF
 
     - name: 📲 Create Payment System Manifest & Resources
       run: |
         cd android/app/src/main
         
         # Enhanced AndroidManifest.xml
-        cat > AndroidManifest.xml << 'EOF'
+        cat > AndroidManifest.xml << 'MANIFEST_EOF'
         <manifest xmlns:android="http://schemas.android.com/apk/res/android"
             package="com.deadtime">
 
@@ -852,11 +852,11 @@ sensorManager.registerListener(this, accelerometer, SensorManager.SENSOR_DELAY_N
               
             </application>
         </manifest>
-        EOF
+        MANIFEST_EOF
         
         # Payment System resources
         mkdir -p res/values
-        cat > res/values/strings.xml << 'EOF'
+        cat > res/values/strings.xml << 'STRINGS_EOF'
         <resources>
             <string name="app_name">DeadTime</string>
             <string name="app_description">Real Money from Dead Time</string>
@@ -866,9 +866,9 @@ sensorManager.registerListener(this, accelerometer, SensorManager.SENSOR_DELAY_N
             <string name="withdrawal_error">Errore durante il prelievo</string>
             <string name="minimum_withdrawal">Importo minimo per prelievo: €5.00</string>
         </resources>
-        EOF
+        STRINGS_EOF
         
-        cat > res/values/styles.xml << 'EOF'
+        cat > res/values/styles.xml << 'STYLES_EOF'
         <resources>
             <style name="DeadTimePaymentTheme" parent="Theme.AppCompat.Light.NoActionBar">
                 <item name="android:statusBarColor">#0a0a1a</item>
@@ -1085,7 +1085,7 @@ jobs:
         mkdir -p java/com/deadtime
         
         # 1. PAYMENT MANAGER - Handles earnings and payouts
-        cat > java/com/deadtime/PaymentManager.java << 'EOF'
+        cat > java/com/deadtime/PaymentManager.java << 'PAYMENT_EOF'
         package com.deadtime;
         
         import android.content.Context;
@@ -1287,10 +1287,10 @@ jobs:
                 this.transactionCount = transactionCount;
             }
         }
-        EOF
+        PAYMENT_EOF
         
         # 2. GEO TARGETING MANAGER - Location-based content
-        cat > java/com/deadtime/GeoTargetingManager.java << 'EOF'
+        cat > java/com/deadtime/GeoTargetingManager.java << 'GEO_EOF'
         package com.deadtime;
         
         import android.location.Location;
@@ -1511,10 +1511,10 @@ jobs:
                 this.distanceFromUser = 0.0;
             }
         }
-        EOF
+        GEO_EOF
         
         # 3. ENHANCED CONTENT MANAGER with Payment Integration
-        cat > java/com/deadtime/ContentManager.java << 'EOF'
+        cat > java/com/deadtime/ContentManager.java << 'CONTENT_EOF'
         package com.deadtime;
         
         import android.content.Context;
