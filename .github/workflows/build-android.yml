@@ -1,4 +1,4 @@
-name: DeadTime Step 1 - Detection Engine Android
+name: DeadTime Step 2 - Advanced UI + Content System
 
 on:
   push:
@@ -45,18 +45,211 @@ jobs:
         rm -rf package-lock.json
         rm -rf android/app/src/main/java/
 
-    - name: 🎯 Create DeadTime Detection Engine
+    - name: 🎨 Create Advanced DeadTime UI + Content System
       run: |
         cd android/app/src/main
         
-        # Create complete DeadTime app structure
         mkdir -p java/com/deadtime
         
-        # 1. CORE: Detection Service with GPS + Accelerometer
+        # 1. CONTENT MANAGER - Handles different content types
+        cat > java/com/deadtime/ContentManager.java << 'EOF'
+        package com.deadtime;
+        
+        import android.content.Context;
+        import android.util.Log;
+        import java.util.ArrayList;
+        import java.util.List;
+        import java.util.Random;
+        
+        public class ContentManager {
+            private static final String TAG = "ContentManager";
+            private Context context;
+            private List<ContentOpportunity> availableContent;
+            private Random random = new Random();
+            
+            public ContentManager(Context context) {
+                this.context = context;
+                this.availableContent = new ArrayList<>();
+                loadContentLibrary();
+            }
+            
+            private void loadContentLibrary() {
+                // Video Content
+                availableContent.add(new ContentOpportunity(
+                    "📺 Video Prodotto Tesla", 
+                    "Scopri la nuova Model 3", 
+                    4.50, 
+                    180, // 3 minutes
+                    ContentType.VIDEO,
+                    "#e74c3c",
+                    "https://example.com/tesla-video"
+                ));
+                
+                availableContent.add(new ContentOpportunity(
+                    "🎬 Trailer Film Marvel", 
+                    "Anteprima esclusiva", 
+                    2.80, 
+                    120, 
+                    ContentType.VIDEO,
+                    "#9b59b6",
+                    "https://example.com/marvel-trailer"
+                ));
+                
+                // Survey Content
+                availableContent.add(new ContentOpportunity(
+                    "📋 Sondaggio Alimentare", 
+                    "Le tue preferenze culinarie", 
+                    3.20, 
+                    240, 
+                    ContentType.SURVEY,
+                    "#3498db",
+                    "Aiuta i ristoranti locali a migliorare"
+                ));
+                
+                availableContent.add(new ContentOpportunity(
+                    "📊 Ricerca di Mercato", 
+                    "Prodotti tecnologici", 
+                    5.50, 
+                    300, 
+                    ContentType.SURVEY,
+                    "#2ecc71",
+                    "La tua opinione vale oro"
+                ));
+                
+                // Interactive Content
+                availableContent.add(new ContentOpportunity(
+                    "🎮 Mini-Game Sponsor", 
+                    "Puzzle sponsorizzato", 
+                    1.80, 
+                    90, 
+                    ContentType.INTERACTIVE,
+                    "#f39c12",
+                    "Gioca e guadagna"
+                ));
+                
+                availableContent.add(new ContentOpportunity(
+                    "🧩 Quiz Cultura", 
+                    "Metti alla prova le tue conoscenze", 
+                    2.30, 
+                    150, 
+                    ContentType.INTERACTIVE,
+                    "#e67e22",
+                    "10 domande divertenti"
+                ));
+                
+                // Local Business Content  
+                availableContent.add(new ContentOpportunity(
+                    "🍕 Demo Pizzeria Locale", 
+                    "Nuovo menu autunno", 
+                    6.20, 
+                    200, 
+                    ContentType.LOCAL_DEMO,
+                    "#c0392b",
+                    "Scopri il ristorante vicino a te"
+                ));
+                
+                availableContent.add(new ContentOpportunity(
+                    "💄 Prova Prodotto Beauty", 
+                    "Nuova linea cosmetica", 
+                    4.80, 
+                    180, 
+                    ContentType.LOCAL_DEMO,
+                    "#8e44ad",
+                    "Test gratuito in store"
+                ));
+                
+                Log.d(TAG, "✅ Loaded " + availableContent.size() + " content opportunities");
+            }
+            
+            public List<ContentOpportunity> getPersonalizedContent(int maxItems) {
+                List<ContentOpportunity> personalized = new ArrayList<>();
+                
+                // Shuffle and select random content
+                List<ContentOpportunity> shuffled = new ArrayList<>(availableContent);
+                for (int i = 0; i < Math.min(maxItems, shuffled.size()); i++) {
+                    int randomIndex = random.nextInt(shuffled.size());
+                    ContentOpportunity content = shuffled.remove(randomIndex);
+                    
+                    // Add some dynamic pricing variation
+                    content.earning += (random.nextDouble() - 0.5) * 1.0; // ±€0.50 variation
+                    content.earning = Math.max(0.50, content.earning); // Minimum €0.50
+                    
+                    personalized.add(content);
+                }
+                
+                Log.d(TAG, "🎯 Generated " + personalized.size() + " personalized opportunities");
+                return personalized;
+            }
+            
+            public ContentOpportunity getHighValueContent() {
+                ContentOpportunity bestContent = null;
+                double maxEarning = 0;
+                
+                for (ContentOpportunity content : availableContent) {
+                    if (content.earning > maxEarning) {
+                        maxEarning = content.earning;
+                        bestContent = content;
+                    }
+                }
+                
+                if (bestContent != null) {
+                    // Add bonus for high-value content
+                    bestContent.earning += random.nextDouble() * 2.0; // Up to €2 bonus
+                    Log.d(TAG, "💎 High-value content: " + bestContent.title + " - €" + String.format("%.2f", bestContent.earning));
+                }
+                
+                return bestContent;
+            }
+        }
+        
+        // Content Opportunity Data Class
+        class ContentOpportunity {
+            public String title;
+            public String description;
+            public double earning;
+            public int durationSeconds;
+            public ContentType type;
+            public String color;
+            public String actionUrl;
+            
+            public ContentOpportunity(String title, String description, double earning, 
+                                    int durationSeconds, ContentType type, String color, String actionUrl) {
+                this.title = title;
+                this.description = description;
+                this.earning = earning;
+                this.durationSeconds = durationSeconds;
+                this.type = type;
+                this.color = color;
+                this.actionUrl = actionUrl;
+            }
+            
+            public String getFormattedDuration() {
+                int minutes = durationSeconds / 60;
+                int seconds = durationSeconds % 60;
+                return minutes > 0 ? minutes + "m " + seconds + "s" : seconds + "s";
+            }
+            
+            public String getFormattedEarning() {
+                return "€" + String.format("%.2f", earning);
+            }
+        }
+        
+        enum ContentType {
+            VIDEO,
+            SURVEY, 
+            INTERACTIVE,
+            LOCAL_DEMO
+        }
+        EOF
+        
+        # 2. ENHANCED DETECTION SERVICE with Content Integration
         cat > java/com/deadtime/DeadTimeDetectionService.java << 'EOF'
         package com.deadtime;
         
         import android.app.Service;
+        import android.app.NotificationManager;
+        import android.app.NotificationChannel;
+        import android.app.PendingIntent;
         import android.content.Intent;
         import android.content.Context;
         import android.location.Location;
@@ -70,55 +263,71 @@ jobs:
         import android.os.Handler;
         import android.os.Looper;
         import android.util.Log;
+        import androidx.core.app.NotificationCompat;
         import java.util.ArrayList;
         import java.util.List;
         
         public class DeadTimeDetectionService extends Service implements LocationListener, SensorEventListener {
             private static final String TAG = "DeadTimeDetection";
+            private static final String CHANNEL_ID = "DeadTimeChannel";
+            
             private LocationManager locationManager;
             private SensorManager sensorManager;
             private Sensor accelerometer;
             private Handler handler;
+            private ContentManager contentManager;
             
-            // Detection parameters
+            // Enhanced detection parameters
             private Location lastLocation;
             private long lastLocationTime;
             private List<Float> accelerometerValues = new ArrayList<>();
             private boolean isInDeadTime = false;
             private long deadTimeStartTime;
+            private int detectionCount = 0;
             
-            // Thresholds for dead time detection
-            private static final float MOVEMENT_THRESHOLD = 2.0f;
-            private static final long LOCATION_STABLE_TIME = 300000; // 5 minutes
-            private static final int ACCELEROMETER_SAMPLES = 50;
+            // Adaptive thresholds
+            private static final float MOVEMENT_THRESHOLD = 1.8f;
+            private static final long LOCATION_STABLE_TIME = 180000; // 3 minutes (reduced)
+            private static final int ACCELEROMETER_SAMPLES = 30;
             
             @Override
             public void onCreate() {
                 super.onCreate();
-                Log.d(TAG, "🎯 DeadTime Detection Service Created");
+                Log.d(TAG, "🎯 Enhanced DeadTime Detection Service Created");
                 
                 handler = new Handler(Looper.getMainLooper());
                 locationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
                 sensorManager = (SensorManager) getSystemService(Context.SENSOR_SERVICE);
                 accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
+                contentManager = new ContentManager(this);
                 
+                createNotificationChannel();
                 startDetection();
+            }
+            
+            private void createNotificationChannel() {
+                NotificationChannel channel = new NotificationChannel(
+                    CHANNEL_ID,
+                    "DeadTime Opportunities",
+                    NotificationManager.IMPORTANCE_HIGH
+                );
+                channel.setDescription("Notifiche per opportunità di guadagno");
+                
+                NotificationManager notificationManager = getSystemService(NotificationManager.class);
+                notificationManager.createNotificationChannel(channel);
             }
             
             private void startDetection() {
                 try {
-                    // Start GPS tracking
                     locationManager.requestLocationUpdates(
                         LocationManager.GPS_PROVIDER, 
-                        30000, // 30 seconds
-                        10, // 10 meters
+                        20000, // 20 seconds
+                        5, // 5 meters
                         this
                     );
                     
-                    // Start accelerometer tracking
                     sensorManager.registerListener(this, accelerometer, SensorManager.SENSOR_DELAY_NORMAL);
-                    
-                    Log.d(TAG, "✅ Detection sensors started");
+                    Log.d(TAG, "✅ Enhanced detection sensors started");
                 } catch (SecurityException e) {
                     Log.e(TAG, "❌ Permission denied for location", e);
                 }
@@ -126,14 +335,15 @@ jobs:
             
             @Override
             public void onLocationChanged(Location location) {
-                Log.d(TAG, "📍 Location: " + location.getLatitude() + ", " + location.getLongitude());
+                Log.d(TAG, "📍 Location: " + location.getLatitude() + ", " + location.getLongitude() + 
+                           " (Accuracy: " + location.getAccuracy() + "m)");
                 
                 if (lastLocation != null) {
                     float distance = lastLocation.distanceTo(location);
                     long timeDiff = System.currentTimeMillis() - lastLocationTime;
                     
-                    // Check if user is stationary
-                    if (distance < 50 && timeDiff > LOCATION_STABLE_TIME) {
+                    // Enhanced stationary detection
+                    if (distance < 30 && timeDiff > LOCATION_STABLE_TIME && location.getAccuracy() < 50) {
                         checkForDeadTime();
                     }
                 }
@@ -149,15 +359,13 @@ jobs:
                     float y = event.values[1];
                     float z = event.values[2];
                     
-                    float acceleration = (float) Math.sqrt(x*x + y*y + z*z);
-                    accelerometerValues.add(acceleration);
+                    float acceleration = (float) Math.sqrt(x*x + y*y + z*z) - 9.8f; // Remove gravity
+                    accelerometerValues.add(Math.abs(acceleration));
                     
-                    // Keep only recent samples
                     if (accelerometerValues.size() > ACCELEROMETER_SAMPLES) {
                         accelerometerValues.remove(0);
                     }
                     
-                    // Check movement pattern
                     if (accelerometerValues.size() == ACCELEROMETER_SAMPLES) {
                         checkMovementPattern();
                     }
@@ -166,14 +374,18 @@ jobs:
             
             private void checkMovementPattern() {
                 float avgAcceleration = 0;
+                float maxAcceleration = 0;
+                
                 for (float value : accelerometerValues) {
                     avgAcceleration += value;
+                    maxAcceleration = Math.max(maxAcceleration, value);
                 }
                 avgAcceleration /= accelerometerValues.size();
                 
-                // If very little movement detected
-                if (avgAcceleration < MOVEMENT_THRESHOLD) {
-                    Log.d(TAG, "🚶‍♂️ Minimal movement detected");
+                // More sophisticated movement detection
+                if (avgAcceleration < MOVEMENT_THRESHOLD && maxAcceleration < MOVEMENT_THRESHOLD * 2) {
+                    Log.d(TAG, "🚶‍♂️ Consistent minimal movement detected (avg: " + 
+                              String.format("%.2f", avgAcceleration) + ")");
                     checkForDeadTime();
                 }
             }
@@ -182,16 +394,58 @@ jobs:
                 if (!isInDeadTime) {
                     isInDeadTime = true;
                     deadTimeStartTime = System.currentTimeMillis();
+                    detectionCount++;
                     
-                    Log.d(TAG, "⏰ DEAD TIME DETECTED! Starting opportunity detection...");
+                    Log.d(TAG, "⏰ DEAD TIME DETECTED! (#" + detectionCount + ") Starting opportunity detection...");
                     
-                    // Trigger opportunity notification
+                    // Get personalized content
+                    ContentOpportunity highValueContent = contentManager.getHighValueContent();
+                    
+                    // Send enhanced notification
+                    sendOpportunityNotification(highValueContent);
+                    
+                    // Trigger main activity with content
                     Intent intent = new Intent(this, MainActivity.class);
                     intent.putExtra("deadTimeDetected", true);
                     intent.putExtra("location", lastLocation);
-                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    intent.putExtra("detectionCount", detectionCount);
+                    intent.putExtra("contentTitle", highValueContent.title);
+                    intent.putExtra("contentEarning", highValueContent.earning);
+                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
                     startActivity(intent);
+                    
+                    // Reset after 10 minutes
+                    handler.postDelayed(() -> {
+                        isInDeadTime = false;
+                        Log.d(TAG, "🔄 Dead time detection reset");
+                    }, 600000);
                 }
+            }
+            
+            private void sendOpportunityNotification(ContentOpportunity content) {
+                Intent intent = new Intent(this, MainActivity.class);
+                intent.putExtra("fromNotification", true);
+                PendingIntent pendingIntent = PendingIntent.getActivity(
+                    this, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
+                );
+                
+                NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CHANNEL_ID)
+                    .setSmallIcon(android.R.drawable.ic_dialog_info)
+                    .setContentTitle("💰 Opportunità DeadTime!")
+                    .setContentText(content.title + " - " + content.getFormattedEarning() + 
+                                   " in " + content.getFormattedDuration())
+                    .setStyle(new NotificationCompat.BigTextStyle()
+                        .bigText("🎯 " + content.description + "\n💰 Guadagna " + 
+                                content.getFormattedEarning() + " in " + content.getFormattedDuration()))
+                    .setPriority(NotificationCompat.PRIORITY_HIGH)
+                    .setContentIntent(pendingIntent)
+                    .setAutoCancel(true)
+                    .setVibrate(new long[]{0, 500, 200, 500});
+                
+                NotificationManager notificationManager = getSystemService(NotificationManager.class);
+                notificationManager.notify(1, builder.build());
+                
+                Log.d(TAG, "📢 Opportunity notification sent: " + content.title);
             }
             
             @Override
@@ -211,12 +465,12 @@ jobs:
                 if (sensorManager != null) {
                     sensorManager.unregisterListener(this);
                 }
-                Log.d(TAG, "🛑 Detection Service Destroyed");
+                Log.d(TAG, "🛑 Enhanced Detection Service Destroyed");
             }
         }
         EOF
         
-        # 2. MAIN ACTIVITY: DeadTime Dashboard
+        # 3. ADVANCED MAIN ACTIVITY with Rich UI
         cat > java/com/deadtime/MainActivity.java << 'EOF'
         package com.deadtime;
         
@@ -229,12 +483,16 @@ jobs:
         import android.os.Bundle;
         import android.util.Log;
         import android.view.View;
+        import android.view.ViewGroup;
         import android.widget.TextView;
         import android.widget.Button;
         import android.widget.LinearLayout;
         import android.widget.ScrollView;
+        import android.widget.ProgressBar;
         import android.graphics.Color;
+        import android.graphics.Typeface;
         import android.Manifest;
+        import java.util.List;
         
         public class MainActivity extends AppCompatActivity {
             private static final String TAG = "DeadTimeMain";
@@ -242,176 +500,338 @@ jobs:
             
             private TextView statusText;
             private TextView earningsText;
+            private TextView statsText;
             private LinearLayout opportunitiesContainer;
+            private LinearLayout statsContainer;
             private Button startDetectionButton;
+            private ProgressBar earningsProgress;
+            
             private boolean detectionActive = false;
             private double totalEarnings = 0.0;
+            private int completedOpportunities = 0;
+            private int detectionCount = 0;
+            private ContentManager contentManager;
             
             @Override
             protected void onCreate(Bundle savedInstanceState) {
                 super.onCreate(savedInstanceState);
                 
-                Log.d(TAG, "🚀 DeadTime App Starting...");
+                Log.d(TAG, "🚀 DeadTime Advanced UI Starting...");
                 
-                // Create dynamic UI
-                createDeadTimeUI();
-                
-                // Check for dead time detection from service
+                contentManager = new ContentManager(this);
+                createAdvancedDeadTimeUI();
                 handleDeadTimeIntent();
-                
-                // Request permissions
                 requestNecessaryPermissions();
             }
             
-            private void createDeadTimeUI() {
+            private void createAdvancedDeadTimeUI() {
                 ScrollView scrollView = new ScrollView(this);
                 LinearLayout mainLayout = new LinearLayout(this);
                 mainLayout.setOrientation(LinearLayout.VERTICAL);
-                mainLayout.setPadding(40, 60, 40, 40);
-                mainLayout.setBackgroundColor(Color.parseColor("#1a1a2e"));
+                mainLayout.setPadding(30, 40, 30, 40);
+                mainLayout.setBackgroundColor(Color.parseColor("#0f0f23"));
                 
-                // Header
+                // Enhanced Header with Gradient Effect
+                createHeaderSection(mainLayout);
+                
+                // Enhanced Stats Dashboard
+                createStatsSection(mainLayout);
+                
+                // Status and Controls
+                createControlsSection(mainLayout);
+                
+                // Dynamic Opportunities Feed
+                createOpportunitiesSection(mainLayout);
+                
+                scrollView.addView(mainLayout);
+                setContentView(scrollView);
+                
+                // Load initial content
+                refreshOpportunities();
+            }
+            
+            private void createHeaderSection(LinearLayout parent) {
+                LinearLayout headerContainer = new LinearLayout(this);
+                headerContainer.setOrientation(LinearLayout.VERTICAL);
+                headerContainer.setPadding(25, 30, 25, 30);
+                headerContainer.setBackgroundColor(Color.parseColor("#1a1a2e"));
+                
                 TextView headerText = new TextView(this);
                 headerText.setText("💰 DeadTime");
-                headerText.setTextSize(32);
-                headerText.setTextColor(Color.parseColor("#00d4aa"));
-                headerText.setPadding(0, 0, 0, 30);
-                mainLayout.addView(headerText);
+                headerText.setTextSize(36);
+                headerText.setTextColor(Color.parseColor("#00f5a0"));
+                headerText.setTypeface(headerText.getTypeface(), Typeface.BOLD);
+                headerContainer.addView(headerText);
                 
                 TextView subtitleText = new TextView(this);
-                subtitleText.setText("Trasforma l'attesa in opportunità");
-                subtitleText.setTextSize(16);
+                subtitleText.setText("AI-Powered Attention Monetization");
+                subtitleText.setTextSize(14);
                 subtitleText.setTextColor(Color.parseColor("#a0a0a0"));
-                subtitleText.setPadding(0, 0, 0, 40);
-                mainLayout.addView(subtitleText);
+                subtitleText.setPadding(0, 5, 0, 0);
+                headerContainer.addView(subtitleText);
                 
-                // Status Section
+                parent.addView(headerContainer);
+            }
+            
+            private void createStatsSection(LinearLayout parent) {
+                TextView sectionTitle = new TextView(this);
+                sectionTitle.setText("📊 Dashboard");
+                sectionTitle.setTextSize(20);
+                sectionTitle.setTextColor(Color.WHITE);
+                sectionTitle.setTypeface(sectionTitle.getTypeface(), Typeface.BOLD);
+                sectionTitle.setPadding(0, 30, 0, 15);
+                parent.addView(sectionTitle);
+                
+                statsContainer = new LinearLayout(this);
+                statsContainer.setOrientation(LinearLayout.HORIZONTAL);
+                parent.addView(statsContainer);
+                
+                // Earnings Card
+                LinearLayout earningsCard = createStatsCard("💰 Guadagni", "€0.00", "#00d4aa");
+                earningsText = (TextView) earningsCard.getChildAt(1);
+                statsContainer.addView(earningsCard);
+                
+                // Opportunities Card  
+                LinearLayout opportunitiesCard = createStatsCard("🎯 Completate", "0", "#3498db");
+                statsText = (TextView) opportunitiesCard.getChildAt(1);
+                statsContainer.addView(opportunitiesCard);
+                
+                // Progress Bar
+                earningsProgress = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
+                earningsProgress.setPadding(0, 20, 0, 0);
+                earningsProgress.setMax(100);
+                earningsProgress.setProgress(0);
+                parent.addView(earningsProgress);
+                
+                TextView progressLabel = new TextView(this);
+                progressLabel.setText("Progresso verso €50 obiettivo");
+                progressLabel.setTextSize(12);
+                progressLabel.setTextColor(Color.parseColor("#a0a0a0"));
+                progressLabel.setPadding(0, 5, 0, 0);
+                parent.addView(progressLabel);
+            }
+            
+            private LinearLayout createStatsCard(String title, String value, String color) {
+                LinearLayout card = new LinearLayout(this);
+                card.setOrientation(LinearLayout.VERTICAL);
+                card.setPadding(20, 15, 20, 15);
+                card.setBackgroundColor(Color.parseColor(color));
+                
+                LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(0, 
+                    LinearLayout.LayoutParams.WRAP_CONTENT, 1.0f);
+                params.setMargins(5, 0, 5, 0);
+                card.setLayoutParams(params);
+                
+                TextView titleView = new TextView(this);
+                titleView.setText(title);
+                titleView.setTextSize(12);
+                titleView.setTextColor(Color.WHITE);
+                card.addView(titleView);
+                
+                TextView valueView = new TextView(this);
+                valueView.setText(value);
+                valueView.setTextSize(18);
+                valueView.setTextColor(Color.WHITE);
+                valueView.setTypeface(valueView.getTypeface(), Typeface.BOLD);
+                valueView.setPadding(0, 5, 0, 0);
+                card.addView(valueView);
+                
+                return card;
+            }
+            
+            private void createControlsSection(LinearLayout parent) {
+                TextView sectionTitle = new TextView(this);
+                sectionTitle.setText("🎯 Controlli");
+                sectionTitle.setTextSize(20);
+                sectionTitle.setTextColor(Color.WHITE);
+                sectionTitle.setTypeface(sectionTitle.getTypeface(), Typeface.BOLD);
+                sectionTitle.setPadding(0, 30, 0, 15);
+                parent.addView(sectionTitle);
+                
                 statusText = new TextView(this);
                 statusText.setText("🔍 Pronto per rilevare tempo morto...");
-                statusText.setTextSize(18);
+                statusText.setTextSize(16);
                 statusText.setTextColor(Color.WHITE);
-                statusText.setPadding(20, 20, 20, 20);
+                statusText.setPadding(25, 20, 25, 20);
                 statusText.setBackgroundColor(Color.parseColor("#16213e"));
-                mainLayout.addView(statusText);
+                parent.addView(statusText);
                 
-                // Earnings Section
-                earningsText = new TextView(this);
-                earningsText.setText("💰 Guadagni totali: €" + String.format("%.2f", totalEarnings));
-                earningsText.setTextSize(20);
-                earningsText.setTextColor(Color.parseColor("#00d4aa"));
-                earningsText.setPadding(20, 30, 20, 20);
-                mainLayout.addView(earningsText);
-                
-                // Start Detection Button
                 startDetectionButton = new Button(this);
-                startDetectionButton.setText("🎯 Avvia Rilevamento");
-                startDetectionButton.setTextSize(18);
+                startDetectionButton.setText("🚀 Avvia AI Detection");
+                startDetectionButton.setTextSize(16);
                 startDetectionButton.setTextColor(Color.WHITE);
-                startDetectionButton.setBackgroundColor(Color.parseColor("#00d4aa"));
-                startDetectionButton.setPadding(30, 20, 30, 20);
+                startDetectionButton.setBackgroundColor(Color.parseColor("#00f5a0"));
+                startDetectionButton.setPadding(30, 25, 30, 25);
+                
+                LinearLayout.LayoutParams buttonParams = new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+                buttonParams.setMargins(0, 20, 0, 0);
+                startDetectionButton.setLayoutParams(buttonParams);
+                
                 startDetectionButton.setOnClickListener(new View.OnClickListener() {
                     @Override
                     public void onClick(View v) {
                         toggleDetection();
                     }
                 });
-                mainLayout.addView(startDetectionButton);
-                
-                // Opportunities Container
-                TextView opportunitiesTitle = new TextView(this);
-                opportunitiesTitle.setText("🎁 Opportunità Disponibili");
-                opportunitiesTitle.setTextSize(20);
-                opportunitiesTitle.setTextColor(Color.WHITE);
-                opportunitiesTitle.setPadding(0, 40, 0, 20);
-                mainLayout.addView(opportunitiesTitle);
+                parent.addView(startDetectionButton);
+            }
+            
+            private void createOpportunitiesSection(LinearLayout parent) {
+                TextView sectionTitle = new TextView(this);
+                sectionTitle.setText("🎁 Opportunità Personalizzate");
+                sectionTitle.setTextSize(20);
+                sectionTitle.setTextColor(Color.WHITE);
+                sectionTitle.setTypeface(sectionTitle.getTypeface(), Typeface.BOLD);
+                sectionTitle.setPadding(0, 30, 0, 15);
+                parent.addView(sectionTitle);
                 
                 opportunitiesContainer = new LinearLayout(this);
                 opportunitiesContainer.setOrientation(LinearLayout.VERTICAL);
-                mainLayout.addView(opportunitiesContainer);
-                
-                scrollView.addView(mainLayout);
-                setContentView(scrollView);
-                
-                // Add sample opportunities
-                addSampleOpportunities();
+                parent.addView(opportunitiesContainer);
             }
             
-            private void addSampleOpportunities() {
-                addOpportunityCard("📺 Guarda Video Prodotto", "€2.50", "2 minuti", "#4a90e2");
-                addOpportunityCard("📋 Completa Sondaggio", "€1.80", "3 minuti", "#7b68ee");
-                addOpportunityCard("🎮 Micro-Task Gamificato", "€3.20", "5 minuti", "#32cd32");
-                addOpportunityCard("🛍️ Demo Prodotto Locale", "€4.50", "4 minuti", "#ff6347");
+            private void refreshOpportunities() {
+                opportunitiesContainer.removeAllViews();
+                List<ContentOpportunity> content = contentManager.getPersonalizedContent(6);
+                
+                for (ContentOpportunity opportunity : content) {
+                    addAdvancedOpportunityCard(opportunity);
+                }
             }
             
-            private void addOpportunityCard(String title, String earning, String duration, String color) {
+            private void addAdvancedOpportunityCard(ContentOpportunity opportunity) {
                 LinearLayout card = new LinearLayout(this);
                 card.setOrientation(LinearLayout.VERTICAL);
                 card.setPadding(25, 20, 25, 20);
-                card.setBackgroundColor(Color.parseColor(color));
+                card.setBackgroundColor(Color.parseColor(opportunity.color));
                 
                 LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT
-                );
+                    LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
                 params.setMargins(0, 0, 0, 15);
                 card.setLayoutParams(params);
                 
+                // Title
                 TextView titleView = new TextView(this);
-                titleView.setText(title);
+                titleView.setText(opportunity.title);
                 titleView.setTextSize(16);
                 titleView.setTextColor(Color.WHITE);
+                titleView.setTypeface(titleView.getTypeface(), Typeface.BOLD);
                 card.addView(titleView);
                 
-                TextView detailsView = new TextView(this);
-                detailsView.setText(earning + " • " + duration);
-                detailsView.setTextSize(14);
-                detailsView.setTextColor(Color.parseColor("#f0f0f0"));
-                detailsView.setPadding(0, 5, 0, 0);
-                card.addView(detailsView);
+                // Description
+                TextView descView = new TextView(this);
+                descView.setText(opportunity.description);
+                descView.setTextSize(14);
+                descView.setTextColor(Color.parseColor("#f0f0f0"));
+                descView.setPadding(0, 5, 0, 10);
+                card.addView(descView);
+                
+                // Earnings and Duration
+                LinearLayout metaLayout = new LinearLayout(this);
+                metaLayout.setOrientation(LinearLayout.HORIZONTAL);
+                
+                TextView earningView = new TextView(this);
+                earningView.setText("💰 " + opportunity.getFormattedEarning());
+                earningView.setTextSize(14);
+                earningView.setTextColor(Color.WHITE);
+                earningView.setTypeface(earningView.getTypeface(), Typeface.BOLD);
+                metaLayout.addView(earningView);
+                
+                TextView durationView = new TextView(this);
+                durationView.setText(" • ⏱️ " + opportunity.getFormattedDuration());
+                durationView.setTextSize(14);
+                durationView.setTextColor(Color.parseColor("#f0f0f0"));
+                metaLayout.addView(durationView);
+                
+                card.addView(metaLayout);
+                
+                // Click handler
+                card.setOnClickListener(new View.OnClickListener() {
+                    @Override
+                    public void onClick(View v) {
+                        completeOpportunity(opportunity);
+                    }
+                });
                 
                 opportunitiesContainer.addView(card);
             }
             
+            private void completeOpportunity(ContentOpportunity opportunity) {
+                // Simulate opportunity completion
+                totalEarnings += opportunity.earning;
+                completedOpportunities++;
+                
+                // Update UI
+                earningsText.setText("€" + String.format("%.2f", totalEarnings));
+                statsText.setText(String.valueOf(completedOpportunities));
+                
+                // Update progress bar (goal: €50)
+                int progress = (int) ((totalEarnings / 50.0) * 100);
+                earningsProgress.setProgress(Math.min(progress, 100));
+                
+                // Show completion feedback
+                statusText.setText("✅ Completata: " + opportunity.title + " (+€" + 
+                                 String.format("%.2f", opportunity.earning) + ")");
+                statusText.setBackgroundColor(Color.parseColor("#00d4aa"));
+                
+                // Refresh opportunities
+                refreshOpportunities();
+                
+                Log.d(TAG, "💰 Opportunity completed: " + opportunity.title + 
+                           " - Earned: €" + String.format("%.2f", opportunity.earning));
+            }
+            
             private void toggleDetection() {
                 if (!detectionActive) {
-                    // Start detection service
                     Intent serviceIntent = new Intent(this, DeadTimeDetectionService.class);
                     startService(serviceIntent);
                     
                     detectionActive = true;
-                    startDetectionButton.setText("⏹️ Ferma Rilevamento");
+                    startDetectionButton.setText("⏹️ Ferma AI Detection");
                     startDetectionButton.setBackgroundColor(Color.parseColor("#ff4757"));
-                    statusText.setText("🟢 Rilevamento ATTIVO - In attesa di tempo morto...");
+                    statusText.setText("🟢 AI Detection ATTIVO - Rilevamento in corso...");
+                    statusText.setBackgroundColor(Color.parseColor("#00d4aa"));
                     
-                    Log.d(TAG, "✅ Detection service started");
+                    Log.d(TAG, "✅ Enhanced detection service started");
                 } else {
-                    // Stop detection service
                     Intent serviceIntent = new Intent(this, DeadTimeDetectionService.class);
                     stopService(serviceIntent);
                     
                     detectionActive = false;
-                    startDetectionButton.setText("🎯 Avvia Rilevamento");
-                    startDetectionButton.setBackgroundColor(Color.parseColor("#00d4aa"));
-                    statusText.setText("🔍 Rilevamento fermo - Premi per attivare");
+                    startDetectionButton.setText("🚀 Avvia AI Detection");
+                    startDetectionButton.setBackgroundColor(Color.parseColor("#00f5a0"));
+                    statusText.setText("🔍 AI Detection fermo - Premi per attivare");
+                    statusText.setBackgroundColor(Color.parseColor("#16213e"));
                     
-                    Log.d(TAG, "🛑 Detection service stopped");
+                    Log.d(TAG, "🛑 Enhanced detection service stopped");
                 }
             }
             
             private void handleDeadTimeIntent() {
                 Intent intent = getIntent();
                 if (intent.getBooleanExtra("deadTimeDetected", false)) {
-                    Location location = intent.getParcelableExtra("location");
+                    detectionCount = intent.getIntExtra("detectionCount", 0);
+                    String contentTitle = intent.getStringExtra("contentTitle");
+                    double contentEarning = intent.getDoubleExtra("contentEarning", 0.0);
                     
-                    statusText.setText("🎯 TEMPO MORTO RILEVATO! Opportunità disponibili:");
-                    statusText.setBackgroundColor(Color.parseColor("#00d4aa"));
+                    statusText.setText("🎯 TEMPO MORTO RILEVATO! (#" + detectionCount + ") " + contentTitle);
+                    statusText.setBackgroundColor(Color.parseColor("#e74c3c"));
                     
-                    // Simulate earning from detected opportunity
-                    double earning = 2.50 + (Math.random() * 3.0); // €2.50-5.50
-                    totalEarnings += earning;
-                    earningsText.setText("💰 Guadagni totali: €" + String.format("%.2f", totalEarnings));
+                    // Auto-complete the detected opportunity
+                    totalEarnings += contentEarning;
+                    completedOpportunities++;
                     
-                    Log.d(TAG, "💰 Opportunity triggered! Earning: €" + String.format("%.2f", earning));
+                    earningsText.setText("€" + String.format("%.2f", totalEarnings));
+                    statsText.setText(String.valueOf(completedOpportunities));
+                    
+                    int progress = (int) ((totalEarnings / 50.0) * 100);
+                    earningsProgress.setProgress(Math.min(progress, 100));
+                    
+                    refreshOpportunities();
+                    
+                    Log.d(TAG, "💰 Auto-completed opportunity from detection! Earning: €" + 
+                               String.format("%.2f", contentEarning));
                 }
             }
             
@@ -419,7 +839,9 @@ jobs:
                 String[] permissions = {
                     Manifest.permission.ACCESS_FINE_LOCATION,
                     Manifest.permission.ACCESS_COARSE_LOCATION,
-                    Manifest.permission.WRITE_EXTERNAL_STORAGE
+                    Manifest.permission.ACCESS_BACKGROUND_LOCATION,
+                    Manifest.permission.WRITE_EXTERNAL_STORAGE,
+                    Manifest.permission.POST_NOTIFICATIONS
                 };
                 
                 boolean needsPermission = false;
@@ -448,18 +870,26 @@ jobs:
                     }
                     
                     if (allGranted) {
-                        statusText.setText("✅ Permessi concessi - Pronto per il rilevamento!");
+                        statusText.setText("✅ Tutti i permessi concessi - Pronto per AI Detection!");
+                        statusText.setBackgroundColor(Color.parseColor("#00d4aa"));
                         Log.d(TAG, "✅ All permissions granted");
                     } else {
-                        statusText.setText("⚠️ Permessi necessari per il funzionamento");
+                        statusText.setText("⚠️ Alcuni permessi mancanti - Funzionalità limitate");
+                        statusText.setBackgroundColor(Color.parseColor("#ff6b6b"));
                         Log.w(TAG, "⚠️ Some permissions denied");
                     }
                 }
             }
+            
+            @Override
+            protected void onResume() {
+                super.onResume();
+                refreshOpportunities();
+            }
         }
         EOF
         
-        # 3. APPLICATION CLASS
+        # 4. APPLICATION CLASS
         cat > java/com/deadtime/MainApplication.java << 'EOF'
         package com.deadtime;
         
@@ -472,12 +902,13 @@ jobs:
             @Override
             public void onCreate() {
                 super.onCreate();
-                Log.d(TAG, "🚀 DeadTime Application Started");
+                Log.d(TAG, "🚀 DeadTime Advanced Application Started");
+                Log.d(TAG, "📊 Features: AI Detection, Content System, Rich UI");
             }
         }
         EOF
 
-    - name: 📱 Create Android Configuration
+    - name: 📱 Create Enhanced Android Configuration
       run: |
         cd android
         
@@ -537,8 +968,8 @@ jobs:
                 applicationId "com.deadtime"
                 minSdkVersion 21
                 targetSdkVersion 33
-                versionCode 1
-                versionName "1.0.0"
+                versionCode 2
+                versionName "2.0.0"
                 testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
             }
             
@@ -568,76 +999,90 @@ jobs:
             implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
             implementation 'com.google.android.material:material:1.8.0'
             implementation 'androidx.core:core:1.9.0'
+            implementation 'androidx.work:work-runtime:2.8.1'
             testImplementation 'junit:junit:4.13.2'
             androidTestImplementation 'androidx.test.ext:junit:1.1.5'
             androidTestImplementation 'androidx.test.espresso:espresso-core:3.5.1'
         }
         EOF
 
-    - name: 📲 Create Android Manifest & Resources
+    - name: 📲 Create Enhanced Manifest & Resources
       run: |
         cd android/app/src/main
         
-        # AndroidManifest.xml with all permissions
+        # Enhanced AndroidManifest.xml
         cat > AndroidManifest.xml << 'EOF'
         <manifest xmlns:android="http://schemas.android.com/apk/res/android"
             package="com.deadtime">
 
-            <!-- DEADTIME CORE PERMISSIONS -->
+            <!-- DEADTIME ENHANCED PERMISSIONS -->
             <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
             <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
             <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
             <uses-permission android:name="android.permission.INTERNET" />
             <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
             <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+            <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+            <uses-permission android:name="android.permission.VIBRATE" />
+            <uses-permission android:name="android.permission.WAKE_LOCK" />
             
-            <!-- HARDWARE ACCESS -->
+            <!-- HARDWARE FEATURES -->
             <uses-feature android:name="android.hardware.location" android:required="true" />
+            <uses-feature android:name="android.hardware.location.gps" android:required="true" />
             <uses-feature android:name="android.hardware.sensor.accelerometer" android:required="true" />
 
             <application
               android:name=".MainApplication"
               android:allowBackup="false"
-              android:theme="@style/AppTheme"
-              android:label="@string/app_name">
+              android:theme="@style/DeadTimeTheme"
+              android:label="@string/app_name"
+              android:requestLegacyExternalStorage="true">
               
               <!-- MAIN ACTIVITY -->
               <activity
                 android:name=".MainActivity"
                 android:exported="true"
-                android:theme="@style/AppTheme">
+                android:screenOrientation="portrait"
+                android:theme="@style/DeadTimeTheme">
                 <intent-filter>
                     <action android:name="android.intent.action.MAIN" />
                     <category android:name="android.intent.category.LAUNCHER" />
                 </intent-filter>
               </activity>
               
-              <!-- DETECTION SERVICE -->
+              <!-- ENHANCED DETECTION SERVICE -->
               <service 
                 android:name=".DeadTimeDetectionService"
                 android:enabled="true"
-                android:exported="false" />
+                android:exported="false"
+                android:foregroundServiceType="location" />
               
             </application>
         </manifest>
         EOF
         
-        # Create resources
+        # Enhanced resources
         mkdir -p res/values
         cat > res/values/strings.xml << 'EOF'
         <resources>
             <string name="app_name">DeadTime</string>
+            <string name="app_description">AI-Powered Attention Monetization</string>
+            <string name="notification_channel_name">DeadTime Opportunities</string>
+            <string name="notification_channel_description">Notifiche per opportunità di guadagno</string>
         </resources>
         EOF
         
         cat > res/values/styles.xml << 'EOF'
         <resources>
-            <style name="AppTheme" parent="Theme.AppCompat.Light.DarkActionBar">
-                <item name="android:statusBarColor">#1a1a2e</item>
-                <item name="android:windowBackground">#1a1a2e</item>
-                <item name="colorPrimary">#00d4aa</item>
-                <item name="colorPrimaryDark">#00a084</item>
-                <item name="colorAccent">#00d4aa</item>
+            <style name="DeadTimeTheme" parent="Theme.AppCompat.Light.NoActionBar">
+                <item name="android:statusBarColor">#0f0f23</item>
+                <item name="android:navigationBarColor">#0f0f23</item>
+                <item name="android:windowBackground">#0f0f23</item>
+                <item name="colorPrimary">#00f5a0</item>
+                <item name="colorPrimaryDark">#00d484</item>
+                <item name="colorAccent">#00f5a0</item>
+                <item name="android:textColorPrimary">#ffffff</item>
+                <item name="android:textColorSecondary">#a0a0a0</item>
             </style>
         </resources>
         EOF
@@ -658,16 +1103,17 @@ jobs:
         cd android
         ./gradlew clean
 
-    - name: 🚀 Build DeadTime Detection Engine
+    - name: 🚀 Build DeadTime Advanced UI + Content System
       run: |
         cd android
         ./gradlew assembleDebug --stacktrace --no-daemon
 
-    - name: ✅ Verify APK Creation
+    - name: ✅ Verify Enhanced APK Creation
       run: |
         cd android
         if [ -f "app/build/outputs/apk/debug/app-debug.apk" ]; then
-          echo "🎉 SUCCESS! DeadTime Detection Engine APK created!"
+          echo "🎉 SUCCESS! DeadTime Advanced UI + Content System APK created!"
+          echo "📱 Features: Rich UI, Content Manager, Enhanced Detection, Notifications"
           ls -la app/build/outputs/apk/debug/
           file app/build/outputs/apk/debug/app-debug.apk
         else
@@ -675,8 +1121,8 @@ jobs:
           exit 1
         fi
 
-    - name: 📦 Upload DeadTime Detection APK
+    - name: 📦 Upload DeadTime Advanced APK
       uses: actions/upload-artifact@v4
       with:
-        name: deadtime-detection-engine-apk
+        name: deadtime-advanced-ui-content-apk
         path: android/app/build/outputs/apk/debug/app-debug.apk
