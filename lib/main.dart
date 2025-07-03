@@ -1,10 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:async';
 import 'dart:math';
-import 'dart:html' as html;
-import 'dart:js' as js;
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -47,25 +44,6 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
     
     _animationController.forward();
     _navigateToHome();
-    _requestPermissions();
-  }
-
-  Future<void> _requestPermissions() async {
-    // Request geolocation permission
-    try {
-      await html.window.navigator.geolocation?.getCurrentPosition();
-    } catch (e) {
-      print('Geolocation permission denied: $e');
-    }
-    
-    // Request notification permission
-    if (js.context.hasProperty('Notification')) {
-      js.context.callMethod('eval', ['''
-        if (Notification.permission !== 'granted') {
-          Notification.requestPermission();
-        }
-      ''']);
-    }
   }
 
   _navigateToHome() async {
@@ -122,7 +100,7 @@ class _SplashScreenState extends State<SplashScreen> with TickerProviderStateMix
               ),
               SizedBox(height: 20),
               Text(
-                'PWA Version - Install me on your iPhone!',
+                'PWA Version - Works on any device!',
                 style: TextStyle(
                   fontSize: 12,
                   color: Colors.white54,
@@ -216,16 +194,13 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   late AnimationController _pulseController;
   late Animation<double> _pulseAnimation;
   
-  bool _isDetecting = false;
-  String _currentStatus = 'Monitoring...';
+  bool _isDetecting = true;
+  String _currentStatus = 'Web monitoring active...';
   double _todayEarnings = 0.0;
   int _opportunitiesFound = 0;
   
-  Timer? _locationTimer;
-  Timer? _motionTimer;
-  
-  Map<String, dynamic>? _lastPosition;
-  DateTime? _lastMovement;
+  Timer? _detectionTimer;
+  DateTime? _lastActivity;
   bool _isStationary = false;
 
   @override
@@ -252,126 +227,29 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   void _startDetection() {
     setState(() {
       _isDetecting = true;
-      _currentStatus = 'Detecting movement...';
+      _currentStatus = 'Simulating dead time detection...';
     });
 
-    // Web-based location monitoring
-    _locationTimer = Timer.periodic(Duration(seconds: 30), (timer) {
-      _getCurrentPosition();
-    });
-
-    // Web-based motion detection
-    _motionTimer = Timer.periodic(Duration(seconds: 5), (timer) {
-      _detectMotion();
+    // Simulate dead time detection every 30 seconds for demo
+    _detectionTimer = Timer.periodic(Duration(seconds: 30), (timer) {
+      if (Random().nextBool()) {
+        _simulateDeadTime();
+      }
     });
   }
 
-  void _getCurrentPosition() {
-    js.context.callMethod('eval', ['''
-      if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(
-          function(position) {
-            window.flutterPosition = {
-              latitude: position.coords.latitude,
-              longitude: position.coords.longitude,
-              timestamp: Date.now()
-            };
-          },
-          function(error) {
-            console.log('Geolocation error: ' + error.message);
-          }
-        );
-      }
-    ''']);
-    
-    // Check for position update
-    var jsPosition = js.context['flutterPosition'];
-    if (jsPosition != null) {
-      _updateLocation(jsPosition);
-    }
-  }
-
-  void _updateLocation(dynamic position) {
-    if (_lastPosition != null) {
-      double distance = _calculateDistance(
-        _lastPosition!['latitude'],
-        _lastPosition!['longitude'],
-        position['latitude'],
-        position['longitude'],
-      );
-      
-      if (distance < 0.05) { // Less than 50 meters
-        _checkForDeadTime();
-      } else {
-        setState(() {
-          _isStationary = false;
-          _currentStatus = 'Moving...';
-        });
-      }
-    }
-    _lastPosition = position;
-  }
-
-  void _detectMotion() {
-    js.context.callMethod('eval', ['''
-      if (window.DeviceMotionEvent) {
-        window.addEventListener('devicemotion', function(event) {
-          var acceleration = event.acceleration;
-          if (acceleration) {
-            var magnitude = Math.sqrt(
-              acceleration.x * acceleration.x + 
-              acceleration.y * acceleration.y + 
-              acceleration.z * acceleration.z
-            );
-            window.flutterMotion = {
-              magnitude: magnitude,
-              timestamp: Date.now()
-            };
-          }
-        });
-      }
-    ''']);
-    
-    var jsMotion = js.context['flutterMotion'];
-    if (jsMotion != null && jsMotion['magnitude'] > 1.5) {
-      _lastMovement = DateTime.now();
+  void _simulateDeadTime() {
+    if (!_isStationary) {
       setState(() {
-        _isStationary = false;
-        _currentStatus = 'Device moving...';
+        _isStationary = true;
+        _currentStatus = 'Dead time detected!';
+        _opportunitiesFound++;
       });
-    } else {
-      _checkForDeadTime();
-    }
-  }
-
-  void _checkForDeadTime() {
-    if (_lastMovement == null) return;
-    
-    Duration timeSinceMovement = DateTime.now().difference(_lastMovement!);
-    
-    if (timeSinceMovement.inMinutes >= 2) {
-      if (!_isStationary) {
-        setState(() {
-          _isStationary = true;
-          _currentStatus = 'Dead time detected!';
-          _opportunitiesFound++;
-        });
-        _showOpportunityNotification();
-      }
+      _showOpportunityNotification();
     }
   }
 
   void _showOpportunityNotification() {
-    // Web notification
-    js.context.callMethod('eval', ['''
-      if (Notification.permission === 'granted') {
-        new Notification('DeadTime Opportunity!', {
-          body: 'Dead time detected. Start earning money now!',
-          icon: '/icons/icon-192.png'
-        });
-      }
-    ''']);
-    
     showDialog(
       context: context,
       builder: (BuildContext context) {
@@ -382,7 +260,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
           ),
           content: Text(
-            'You have been stationary for 2+ minutes. Would you like to earn money during this dead time?',
+            'Dead time simulation detected. Would you like to earn money during this time?',
             style: TextStyle(color: Colors.white70),
           ),
           actions: [
@@ -409,6 +287,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     
     setState(() {
       _todayEarnings += earning;
+      _isStationary = false;
+      _currentStatus = 'Monitoring...';
     });
     
     final prefs = await SharedPreferences.getInstance();
@@ -421,23 +301,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         backgroundColor: Color(0xFF4CAF50),
       ),
     );
-  }
-
-  double _calculateDistance(double lat1, double lon1, double lat2, double lon2) {
-    const double earthRadius = 6371; // km
-    double dLat = _toRadians(lat2 - lat1);
-    double dLon = _toRadians(lon2 - lon1);
-    
-    double a = sin(dLat / 2) * sin(dLat / 2) +
-        cos(_toRadians(lat1)) * cos(_toRadians(lat2)) *
-        sin(dLon / 2) * sin(dLon / 2);
-    
-    double c = 2 * atan2(sqrt(a), sqrt(1 - a));
-    return earthRadius * c;
-  }
-
-  double _toRadians(double degrees) {
-    return degrees * (pi / 180);
   }
 
   @override
@@ -465,7 +328,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                         ),
                       ),
                       Text(
-                        'PWA Version - Ready to monetize!',
+                        'PWA ready to monetize!',
                         style: TextStyle(
                           fontSize: 16,
                           color: Colors.white70,
@@ -480,7 +343,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Icon(
-                      Icons.notifications,
+                      Icons.web,
                       color: Color(0xFF6C63FF),
                     ),
                   ),
@@ -488,463 +351,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               ),
               
               SizedBox(height: 30),
-              
-              Text(
-                'Recent Activities',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                ),
-              ),
-              
-              SizedBox(height: 15),
-              
-              Expanded(
-                child: ListView.builder(
-                  itemCount: 10,
-                  itemBuilder: (context, index) {
-                    return _buildActivityItem(index);
-                  },
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Future<double> _getTotalEarnings() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getDouble('today_earnings') ?? 0.0;
-  }
-
-  void _showWithdrawDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          backgroundColor: Color(0xFF1A1A2E),
-          title: Text(
-            '💳 Withdraw Earnings',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-          ),
-          content: Text(
-            'In the full version, you would be able to withdraw your earnings to:\n\n'
-            '• PayPal\n'
-            '• Bank Account\n'
-            '• Crypto Wallet\n'
-            '• Gift Cards\n\n'
-            'This is a demo version!',
-            style: TextStyle(color: Colors.white70),
-          ),
-          actions: [
-            ElevatedButton(
-              onPressed: () => Navigator.of(context).pop(),
-              style: ElevatedButton.styleFrom(backgroundColor: Color(0xFF6C63FF)),
-              child: Text('Got it!'),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  Widget _buildActivityItem(int index) {
-    List<Map<String, dynamic>> activities = [
-      {'type': 'Survey', 'amount': '€1.50', 'time': '2 hours ago'},
-      {'type': 'Video Ad', 'amount': '€0.75', 'time': '4 hours ago'},
-      {'type': 'Product Demo', 'amount': '€2.25', 'time': '6 hours ago'},
-      {'type': 'Check-in', 'amount': '€1.00', 'time': '1 day ago'},
-      {'type': 'Game', 'amount': '€1.75', 'time': '1 day ago'},
-    ];
-
-    final activity = activities[index % activities.length];
-
-    return Container(
-      margin: EdgeInsets.only(bottom: 12),
-      padding: EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Color(0xFF1A1A2E),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: Color(0xFF4CAF50).withOpacity(0.2),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(
-              Icons.monetization_on,
-              color: Color(0xFF4CAF50),
-              size: 20,
-            ),
-          ),
-          SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  activity['type'],
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                    color: Colors.white,
-                  ),
-                ),
-                Text(
-                  activity['time'],
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.white54,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Text(
-            activity['amount'],
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFF4CAF50),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class ProfileScreen extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Color(0xFF0F0F23),
-      body: SafeArea(
-        child: Padding(
-          padding: EdgeInsets.all(20),
-          child: Column(
-            children: [
-              Container(
-                padding: EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: Color(0xFF1A1A2E),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Column(
-                  children: [
-                    CircleAvatar(
-                      radius: 40,
-                      backgroundColor: Color(0xFF6C63FF),
-                      child: Text(
-                        'DT',
-                        style: TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ),
-                    SizedBox(height: 12),
-                    Text(
-                      'DeadTime User',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                    ),
-                    Text(
-                      'PWA Version - Member since Dec 2024',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Colors.white70,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              
-              SizedBox(height: 30),
-              
-              Expanded(
-                child: ListView(
-                  children: [
-                    _buildProfileOption(
-                      'PWA Settings',
-                      Icons.web,
-                      () => _showPWASettings(context),
-                    ),
-                    _buildProfileOption(
-                      'Notification Settings',
-                      Icons.notifications,
-                      () => _showNotificationSettings(context),
-                    ),
-                    _buildProfileOption(
-                      'Location Settings',
-                      Icons.location_on,
-                      () => _showLocationSettings(context),
-                    ),
-                    _buildProfileOption(
-                      'Privacy Settings',
-                      Icons.privacy_tip,
-                      () => _showPrivacySettings(context),
-                    ),
-                    _buildProfileOption(
-                      'Help & Support',
-                      Icons.help,
-                      () => _showSupport(context),
-                    ),
-                    _buildProfileOption(
-                      'About DeadTime PWA',
-                      Icons.info,
-                      () => _showAbout(context),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildProfileOption(
-    String title,
-    IconData icon,
-    VoidCallback onTap,
-  ) {
-    return Container(
-      margin: EdgeInsets.only(bottom: 12),
-      child: ListTile(
-        leading: Container(
-          padding: EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: Color(0xFF6C63FF).withOpacity(0.2),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Icon(
-            icon,
-            color: Color(0xFF6C63FF),
-            size: 20,
-          ),
-        ),
-        title: Text(
-          title,
-          style: TextStyle(
-            fontSize: 16,
-            color: Colors.white,
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-        trailing: Icon(
-          Icons.chevron_right,
-          color: Colors.white54,
-        ),
-        onTap: onTap,
-        tileColor: Color(0xFF1A1A2E),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
-      ),
-    );
-  }
-
-  void _showPWASettings(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          backgroundColor: Color(0xFF1A1A2E),
-          title: Text(
-            '🌐 PWA Settings',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-          ),
-          content: Text(
-            'DeadTime PWA Features:\n\n'
-            '✅ Full-screen app experience\n'
-            '✅ Works offline\n'
-            '✅ Push notifications\n'
-            '✅ GPS location tracking\n'
-            '✅ Device motion detection\n'
-            '✅ Background sync\n\n'
-            'PWA updates automatically!',
-            style: TextStyle(color: Colors.white70),
-          ),
-          actions: [
-            ElevatedButton(
-              onPressed: () => Navigator.of(context).pop(),
-              style: ElevatedButton.styleFrom(backgroundColor: Color(0xFF6C63FF)),
-              child: Text('Close'),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  void _showNotificationSettings(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          backgroundColor: Color(0xFF1A1A2E),
-          title: Text(
-            '🔔 Notification Settings',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-          ),
-          content: Text(
-            'DeadTime can send you notifications when:\n\n'
-            '• Dead time is detected\n'
-            '• New opportunities are available\n'
-            '• Earnings milestones are reached\n\n'
-            'Manage notifications in your browser settings.',
-            style: TextStyle(color: Colors.white70),
-          ),
-          actions: [
-            ElevatedButton(
-              onPressed: () => Navigator.of(context).pop(),
-              style: ElevatedButton.styleFrom(backgroundColor: Color(0xFF6C63FF)),
-              child: Text('Close'),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  void _showLocationSettings(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          backgroundColor: Color(0xFF1A1A2E),
-          title: Text(
-            '📍 Location Settings',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-          ),
-          content: Text(
-            'DeadTime uses your location to:\n\n'
-            '• Detect when you\'re stationary\n'
-            '• Find location-based opportunities\n'
-            '• Provide contextual content\n\n'
-            'Location data is processed locally and encrypted.',
-            style: TextStyle(color: Colors.white70),
-          ),
-          actions: [
-            ElevatedButton(
-              onPressed: () => Navigator.of(context).pop(),
-              style: ElevatedButton.styleFrom(backgroundColor: Color(0xFF6C63FF)),
-              child: Text('Close'),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  void _showPrivacySettings(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          backgroundColor: Color(0xFF1A1A2E),
-          title: Text(
-            '🔒 Privacy Settings',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-          ),
-          content: Text(
-            'Your Privacy is Important:\n\n'
-            '✅ All data processed locally\n'
-            '✅ No personal data sold\n'
-            '✅ GDPR compliant\n'
-            '✅ End-to-end encryption\n'
-            '✅ You control your data\n\n'
-            'Review our Privacy Policy for details.',
-            style: TextStyle(color: Colors.white70),
-          ),
-          actions: [
-            ElevatedButton(
-              onPressed: () => Navigator.of(context).pop(),
-              style: ElevatedButton.styleFrom(backgroundColor: Color(0xFF6C63FF)),
-              child: Text('Close'),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  void _showSupport(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          backgroundColor: Color(0xFF1A1A2E),
-          title: Text(
-            '💬 Help & Support',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-          ),
-          content: Text(
-            'Need help? We\'re here for you!\n\n'
-            '📧 Email: support@deadtime.app\n'
-            '💬 Live Chat: Available 24/7\n'
-            '📚 Knowledge Base: help.deadtime.app\n'
-            '🎥 Video Tutorials: Available in-app\n\n'
-            'PWA Version: 1.0.0',
-            style: TextStyle(color: Colors.white70),
-          ),
-          actions: [
-            ElevatedButton(
-              onPressed: () => Navigator.of(context).pop(),
-              style: ElevatedButton.styleFrom(backgroundColor: Color(0xFF6C63FF)),
-              child: Text('Close'),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  void _showAbout(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          backgroundColor: Color(0xFF1A1A2E),
-          title: Text(
-            'ℹ️ About DeadTime PWA',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-          ),
-          content: Text(
-            'DeadTime PWA v1.0.0\n\n'
-            '🚀 Built with Flutter Web\n'
-            '📱 Progressive Web App\n'
-            '🌐 Works on all devices\n'
-            '⚡ Lightning fast\n'
-            '🔄 Auto-updates\n\n'
-            'Transform your dead time into digital gold!\n\n'
-            '© 2024 DeadTime. All rights reserved.',
-            style: TextStyle(color: Colors.white70),
-          ),
-          actions: [
-            ElevatedButton(
-              onPressed: () => Navigator.of(context).pop(),
-              style: ElevatedButton.styleFrom(backgroundColor: Color(0xFF6C63FF)),
-              child: Text('Close'),
-            ),
-          ],
-        );
-      },
-    );
-  }
-}
               
               Container(
                 width: double.infinity,
@@ -990,7 +396,7 @@ class ProfileScreen extends StatelessWidget {
                       ),
                     ),
                     Text(
-                      _isDetecting ? 'Web AI monitoring your activity' : 'Detection paused',
+                      _isDetecting ? 'PWA demo monitoring active' : 'Detection paused',
                       style: TextStyle(
                         fontSize: 14,
                         color: Colors.white70,
@@ -1054,10 +460,10 @@ class ProfileScreen extends StatelessWidget {
                   SizedBox(width: 15),
                   Expanded(
                     child: _buildActionButton(
-                      'Install App',
-                      Icons.download,
+                      'Force Opportunity',
+                      Icons.bolt,
                       () {
-                        _showInstallInstructions();
+                        _simulateDeadTime();
                       },
                     ),
                   ),
@@ -1067,36 +473,6 @@ class ProfileScreen extends StatelessWidget {
           ),
         ),
       ),
-    );
-  }
-
-  void _showInstallInstructions() {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          backgroundColor: Color(0xFF1A1A2E),
-          title: Text(
-            '📱 Install DeadTime App',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-          ),
-          content: Text(
-            'To install DeadTime on your iPhone:\n\n'
-            '1. Tap the Share button in Safari\n'
-            '2. Select "Add to Home Screen"\n'
-            '3. Tap "Add" to install\n\n'
-            'DeadTime will work like a native app!',
-            style: TextStyle(color: Colors.white70),
-          ),
-          actions: [
-            ElevatedButton(
-              onPressed: () => Navigator.of(context).pop(),
-              style: ElevatedButton.styleFrom(backgroundColor: Color(0xFF6C63FF)),
-              child: Text('Got it!'),
-            ),
-          ],
-        );
-      },
     );
   }
 
@@ -1178,8 +554,7 @@ class ProfileScreen extends StatelessWidget {
   @override
   void dispose() {
     _pulseController.dispose();
-    _locationTimer?.cancel();
-    _motionTimer?.cancel();
+    _detectionTimer?.cancel();
     super.dispose();
   }
 }
@@ -1352,43 +727,7 @@ class OpportunitiesScreen extends StatelessWidget {
     );
   }
 
-  void _startOpportunity(BuildContext context, Map<String, dynamic> opportunity) {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          backgroundColor: Color(0xFF1A1A2E),
-          title: Text(
-            '🚀 ${opportunity['title']}',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-          ),
-          content: Text(
-            '${opportunity['description']}\n\n'
-            'Duration: ${opportunity['duration']}\n'
-            'Reward: ${opportunity['reward']}\n\n'
-            'This is a demo - in the full version, you would complete the actual task!',
-            style: TextStyle(color: Colors.white70),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: Text('Cancel', style: TextStyle(color: Colors.white54)),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-                _completeOpportunity(context, opportunity);
-              },
-              style: ElevatedButton.styleFrom(backgroundColor: Color(0xFF6C63FF)),
-              child: Text('Complete'),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  void _completeOpportunity(BuildContext context, Map<String, dynamic> opportunity) async {
+  void _startOpportunity(BuildContext context, Map<String, dynamic> opportunity) async {
     final prefs = await SharedPreferences.getInstance();
     double currentEarnings = prefs.getDouble('today_earnings') ?? 0.0;
     double reward = double.parse(opportunity['reward'].replaceAll('€', ''));
@@ -1439,7 +778,7 @@ class EarningsScreen extends StatelessWidget {
                 child: Column(
                   children: [
                     Text(
-                      'Total Balance',
+                      'Demo Balance',
                       style: TextStyle(
                         fontSize: 16,
                         color: Colors.white70,
@@ -1450,7 +789,7 @@ class EarningsScreen extends StatelessWidget {
                       future: _getTotalEarnings(),
                       builder: (context, snapshot) {
                         return Text(
-                          '€${(snapshot.data ?? 0.0).toStringAsFixed(2)}',
+                          '€${(snapshot.data ?? 24.75).toStringAsFixed(2)}',
                           style: TextStyle(
                             fontSize: 36,
                             fontWeight: FontWeight.bold,
@@ -1475,3 +814,414 @@ class EarningsScreen extends StatelessWidget {
               ),
               
               SizedBox(height: 30),
+              
+              Text(
+                'Recent Activities',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
+              
+              SizedBox(height: 15),
+              
+              Expanded(
+                child: ListView.builder(
+                  itemCount: 10,
+                  itemBuilder: (context, index) {
+                    return _buildActivityItem(index);
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<double> _getTotalEarnings() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getDouble('today_earnings') ?? 24.75;
+  }
+
+  void _showWithdrawDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          backgroundColor: Color(0xFF1A1A2E),
+          title: Text(
+            '💳 Withdraw Earnings',
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          ),
+          content: Text(
+            'In the full version, you would be able to withdraw your earnings to:\n\n'
+            '• PayPal\n'
+            '• Bank Account\n'
+            '• Crypto Wallet\n'
+            '• Gift Cards\n\n'
+            'This is a PWA demo version!',
+            style: TextStyle(color: Colors.white70),
+          ),
+          actions: [
+            ElevatedButton(
+              onPressed: () => Navigator.of(context).pop(),
+              style: ElevatedButton.styleFrom(backgroundColor: Color(0xFF6C63FF)),
+              child: Text('Got it!'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildActivityItem(int index) {
+    List<Map<String, dynamic>> activities = [
+      {'type': 'Survey', 'amount': '€1.50', 'time': '2 hours ago'},
+      {'type': 'Video Ad', 'amount': '€0.75', 'time': '4 hours ago'},
+      {'type': 'Product Demo', 'amount': '€2.25', 'time': '6 hours ago'},
+      {'type': 'Check-in', 'amount': '€1.00', 'time': '1 day ago'},
+      {'type': 'Game', 'amount': '€1.75', 'time': '1 day ago'},
+    ];
+
+    final activity = activities[index % activities.length];
+
+    return Container(
+      margin: EdgeInsets.only(bottom: 12),
+      padding: EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Color(0xFF1A1A2E),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Color(0xFF4CAF50).withOpacity(0.2),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(
+              Icons.monetization_on,
+              color: Color(0xFF4CAF50),
+              size: 20,
+            ),
+          ),
+          SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  activity['type'],
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.white,
+                  ),
+                ),
+                Text(
+                  activity['time'],
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.white54,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Text(
+            activity['amount'],
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF4CAF50),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class ProfileScreen extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Color(0xFF0F0F23),
+      body: SafeArea(
+        child: Padding(
+          padding: EdgeInsets.all(20),
+          child: Column(
+            children: [
+              Container(
+                padding: EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: Color(0xFF1A1A2E),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Column(
+                  children: [
+                    CircleAvatar(
+                      radius: 40,
+                      backgroundColor: Color(0xFF6C63FF),
+                      child: Text(
+                        'DT',
+                        style: TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                    SizedBox(height: 12),
+                    Text(
+                      'DeadTime PWA User',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                    Text(
+                      'Progressive Web App Version',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.white70,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              
+              SizedBox(height: 30),
+              
+              Expanded(
+                child: ListView(
+                  children: [
+                    _buildProfileOption(
+                      'Install as App',
+                      Icons.download,
+                      () => _showInstallInstructions(context),
+                    ),
+                    _buildProfileOption(
+                      'PWA Features',
+                      Icons.web,
+                      () => _showPWAFeatures(context),
+                    ),
+                    _buildProfileOption(
+                      'Demo Settings',
+                      Icons.settings,
+                      () => _showDemoSettings(context),
+                    ),
+                    _buildProfileOption(
+                      'About PWA Version',
+                      Icons.info,
+                      () => _showAbout(context),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildProfileOption(String title, IconData icon, VoidCallback onTap) {
+    return Container(
+      margin: EdgeInsets.only(bottom: 12),
+      child: ListTile(
+        leading: Container(
+          padding: EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: Color(0xFF6C63FF).withOpacity(0.2),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(
+            icon,
+            color: Color(0xFF6C63FF),
+            size: 20,
+          ),
+        ),
+        title: Text(
+          title,
+          style: TextStyle(
+            fontSize: 16,
+            color: Colors.white,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        trailing: Icon(
+          Icons.chevron_right,
+          color: Colors.white54,
+        ),
+        onTap: onTap,
+        tileColor: Color(0xFF1A1A2E),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+      ),
+    );
+  }
+
+  void _showInstallInstructions(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          backgroundColor: Color(0xFF1A1A2E),
+          title: Text(
+            '📱 Install DeadTime PWA',
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          ),
+          content: Text(
+            'To install DeadTime on your device:\n\n'
+            '📱 iPhone/iPad:\n'
+            '1. Open in Safari\n'
+            '2. Tap Share button\n'
+            '3. Select "Add to Home Screen"\n'
+            '4. Tap "Add"\n\n'
+            '🤖 Android:\n'
+            '1. Open in Chrome\n'
+            '2. Tap menu (3 dots)\n'
+            '3. Select "Add to Home screen"\n'
+            '4. Tap "Add"\n\n'
+            '💻 Desktop:\n'
+            '1. Look for install icon in address bar\n'
+            '2. Click "Install"\n\n'
+            'Works like a native app!',
+            style: TextStyle(color: Colors.white70),
+          ),
+          actions: [
+            ElevatedButton(
+              onPressed: () => Navigator.of(context).pop(),
+              style: ElevatedButton.styleFrom(backgroundColor: Color(0xFF6C63FF)),
+              child: Text('Got it!'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _showPWAFeatures(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          backgroundColor: Color(0xFF1A1A2E),
+          title: Text(
+            '🚀 PWA Features',
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          ),
+          content: Text(
+            'DeadTime PWA includes:\n\n'
+            '✅ Works offline\n'
+            '✅ App-like experience\n'
+            '✅ Push notifications (web)\n'
+            '✅ Local data storage\n'
+            '✅ Responsive design\n'
+            '✅ Auto-updates\n'
+            '✅ Cross-platform\n'
+            '✅ No app store needed\n'
+            '✅ Small download size\n'
+            '✅ Fast loading\n\n'
+            'Future updates will add:\n'
+            '• Real GPS tracking\n'
+            '• Advanced sensors\n'
+            '• Background sync\n'
+            '• More opportunities',
+            style: TextStyle(color: Colors.white70),
+          ),
+          actions: [
+            ElevatedButton(
+              onPressed: () => Navigator.of(context).pop(),
+              style: ElevatedButton.styleFrom(backgroundColor: Color(0xFF6C63FF)),
+              child: Text('Amazing!'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _showDemoSettings(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          backgroundColor: Color(0xFF1A1A2E),
+          title: Text(
+            '⚙️ Demo Settings',
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          ),
+          content: Text(
+            'Current demo features:\n\n'
+            '🎯 Simulated dead time detection\n'
+            '💰 Virtual earnings system\n'
+            '📊 Local data storage\n'
+            '🎮 Interactive opportunities\n'
+            '📱 PWA installation\n\n'
+            'Demo limitations:\n'
+            '• No real money transactions\n'
+            '• Simulated GPS/sensors\n'
+            '• Limited background processing\n\n'
+            'Full version will include:\n'
+            '• Real earnings\n'
+            '• Advanced AI detection\n'
+            '• Payment integration\n'
+            '• Enterprise features',
+            style: TextStyle(color: Colors.white70),
+          ),
+          actions: [
+            ElevatedButton(
+              onPressed: () => Navigator.of(context).pop(),
+              style: ElevatedButton.styleFrom(backgroundColor: Color(0xFF6C63FF)),
+              child: Text('Understood'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _showAbout(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          backgroundColor: Color(0xFF1A1A2E),
+          title: Text(
+            'ℹ️ About DeadTime PWA',
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          ),
+          content: Text(
+            'DeadTime PWA Demo v1.0\n\n'
+            '🚀 Built with Flutter Web\n'
+            '📱 Progressive Web App\n'
+            '🌐 Cross-platform compatible\n'
+            '⚡ Lightning fast performance\n'
+            '🔒 Secure and private\n'
+            '🔄 Auto-updating\n\n'
+            'Transform your dead time into digital gold!\n\n'
+            'This PWA demonstrates the full potential of web-based mobile applications.\n\n'
+            '© 2024 DeadTime. All rights reserved.\n'
+            'PWA Technology Demo',
+            style: TextStyle(color: Colors.white70),
+          ),
+          actions: [
+            ElevatedButton(
+              onPressed: () => Navigator.of(context).pop(),
+              style: ElevatedButton.styleFrom(backgroundColor: Color(0xFF6C63FF)),
+              child: Text('Close'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
