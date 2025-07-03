@@ -26,7 +26,7 @@ workflows:
           flutter config --enable-web
       - name: Build Flutter Web
         script: |
-          flutter build web --release --web-renderer canvaskit
+          flutter build web --release
       - name: Create PWA Manifest
         script: |
           cat > build/web/manifest.json << 'EOF'
