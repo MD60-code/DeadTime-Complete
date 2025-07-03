@@ -8,14 +8,7 @@ workflows:
       xcode: latest
       cocoapods: default
       vars:
-        APP_ID: 1234567890 # Replace with your actual App Store Connect App ID
         BUNDLE_ID: "com.deadtime.app"
-        APP_STORE_APP_ID: 1234567890 # Replace with your actual App Store Connect App ID
-      groups:
-        - appstore_credentials
-      flutter: stable
-      xcode: latest
-      cocoapods: default
     cache:
       cache_paths:
         - $FLUTTER_ROOT/.pub-cache
@@ -36,89 +29,24 @@ workflows:
         script: |
           find . -name "Podfile" -execdir pod install \;
       - name: Flutter analyze
-  script: |
-    flutter analyze || true
-  ignore_failure: true
-     - name: Flutter unit tests
-  script: |
-    flutter test || true
-  ignore_failure: true
+        script: |
+          flutter analyze || true
+        ignore_failure: true
+      - name: Flutter unit tests
+        script: |
+          flutter test || true
+        ignore_failure: true
       - name: Build Flutter iOS
         script: |
           flutter build ios --release --no-codesign
-      - name: Build iOS with Xcode
-        script: |
-          xcode-project build-ipa \
-            --workspace ios/Runner.xcworkspace \
-            --scheme Runner \
-            --archive-flags="-destination 'generic/platform=iOS'"
     artifacts:
+      - build/ios/iphoneos/*.app
       - build/ios/ipa/*.ipa
-      - /tmp/xcodebuild_logs/*.log
       - flutter_drive.log
     publishing:
       email:
         recipients:
-          - user@example.com # Replace with your email
+          - mauro.dornik@gmail.com
         notify:
           success: true
           failure: true
-
-  android-workflow:
-    name: DeadTime Android Build (Backup)
-    max_build_duration: 120
-    instance_type: linux_x2
-    environment:
-      android_signing:
-        - keystore_reference
-      groups:
-        - google_play
-      java: 17
-      flutter: stable
-    cache:
-      cache_paths:
-        - $FLUTTER_ROOT/.pub-cache
-        - $HOME/.gradle/caches
-    triggering:
-      events:
-        - push
-      branch_patterns:
-        - pattern: main
-          include: true
-          source: true
-    scripts:
-      - name: Set up local.properties
-        script: |
-          echo "flutter.sdk=$HOME/programs/flutter" > "$CM_BUILD_DIR/android/local.properties"
-      - name: Get Flutter packages
-        script: |
-          flutter packages pub get
-      - name: Flutter analyze
-        script: |
-          flutter analyze
-      - name: Flutter unit tests
-        script: |
-          flutter test
-        ignore_failure: true
-      - name: Build Android APK
-        script: |
-          flutter build apk --release
-      - name: Build Android App Bundle
-        script: |
-          flutter build appbundle --release
-    artifacts:
-      - build/**/outputs/apk/**/*.apk
-      - build/**/outputs/bundle/**/*.aab
-      - build/**/outputs/**/mapping.txt
-      - flutter_drive.log
-    publishing:
-      email:
-        recipients:
-          - user@example.com # Replace with your email
-        notify:
-          success: true
-          failure: true
-      google_play:
-        credentials: $GCLOUD_SERVICE_ACCOUNT_CREDENTIALS
-        track: internal
-        submit_as_draft: true
