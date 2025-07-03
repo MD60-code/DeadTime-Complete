@@ -25,9 +25,6 @@ workflows:
       - name: Get Flutter packages
         script: |
           flutter packages pub get
-      - name: Install CocoaPods dependencies
-        script: |
-          find . -name "Podfile" -execdir pod install \;
       - name: Flutter analyze
         script: |
           flutter analyze || true
