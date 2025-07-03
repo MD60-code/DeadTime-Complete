@@ -6,13 +6,13 @@ workflows:
     integrations:
       app_store_connect: codemagic
     environment:
-      ios_signing:
-        distribution_type: development
-        bundle_identifier: com.deadtime.ios
       vars:
         XCODE_WORKSPACE: "ios/DeadTime.xcworkspace"
         XCODE_SCHEME: "DeadTime"
         XCODE_PROJECT: "ios/DeadTime.xcodeproj"
+        CODE_SIGN_IDENTITY: ""
+        CODE_SIGNING_REQUIRED: "NO"
+        CODE_SIGNING_ALLOWED: "NO"
       xcode: latest
       cocoapods: default
     scripts:
