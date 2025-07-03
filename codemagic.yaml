@@ -1,19 +1,15 @@
 workflows:
-  ios-workflow:
-    name: DeadTime iOS Flutter Build
-    max_build_duration: 120
-    instance_type: mac_mini_m1
+  flutter-web-workflow:
+    name: DeadTime Flutter Web PWA
+    max_build_duration: 60
+    instance_type: linux_x2
     environment:
       flutter: stable
-      xcode: latest
-      cocoapods: default
-      vars:
-        BUNDLE_ID: "com.deadtime.app"
+      node: 16
     cache:
       cache_paths:
         - $FLUTTER_ROOT/.pub-cache
-        - $HOME/.gradle/caches
-        - $HOME/Library/Caches/CocoaPods
+        - $HOME/.pub-cache
     triggering:
       events:
         - push
@@ -25,21 +21,134 @@ workflows:
       - name: Get Flutter packages
         script: |
           flutter packages pub get
-      - name: Flutter analyze
+      - name: Enable Flutter Web
         script: |
-          flutter analyze || true
-        ignore_failure: true
-      - name: Flutter unit tests
+          flutter config --enable-web
+      - name: Build Flutter Web
         script: |
-          flutter test || true
-        ignore_failure: true
-      - name: Build Flutter iOS
+          flutter build web --release --web-renderer canvaskit
+      - name: Create PWA Manifest
         script: |
-          flutter build ios --release --no-codesign
+          cat > build/web/manifest.json << 'EOF'
+          {
+            "name": "DeadTime - Monetize Your Time",
+            "short_name": "DeadTime",
+            "description": "AI-powered attention monetization platform",
+            "start_url": "/",
+            "display": "standalone",
+            "background_color": "#0F0F23",
+            "theme_color": "#6C63FF",
+            "icons": [
+              {
+                "src": "icons/icon-192.png",
+                "sizes": "192x192",
+                "type": "image/png"
+              },
+              {
+                "src": "icons/icon-512.png",
+                "sizes": "512x512",
+                "type": "image/png"
+              }
+            ],
+            "categories": ["productivity", "business"],
+            "screenshots": [
+              {
+                "src": "screenshots/mobile1.png",
+                "sizes": "390x844",
+                "type": "image/png",
+                "form_factor": "narrow"
+              }
+            ]
+          }
+          EOF
+      - name: Create Service Worker
+        script: |
+          cat > build/web/sw.js << 'EOF'
+          const CACHE_NAME = 'deadtime-v1';
+          const urlsToCache = [
+            '/',
+            '/main.dart.js',
+            '/flutter_service_worker.js',
+            '/manifest.json'
+          ];
+          
+          self.addEventListener('install', event => {
+            event.waitUntil(
+              caches.open(CACHE_NAME)
+                .then(cache => cache.addAll(urlsToCache))
+            );
+          });
+          
+          self.addEventListener('fetch', event => {
+            event.respondWith(
+              caches.match(event.request)
+                .then(response => response || fetch(event.request))
+            );
+          });
+          
+          // Background sync for dead time detection
+          self.addEventListener('sync', event => {
+            if (event.tag === 'deadtime-sync') {
+              event.waitUntil(syncDeadTimeData());
+            }
+          });
+          
+          async function syncDeadTimeData() {
+            // Sync dead time opportunities when online
+            console.log('Syncing dead time data...');
+          }
+          EOF
+      - name: Update index.html for PWA
+        script: |
+          cat > build/web/index.html << 'EOF'
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <base href="$FLUTTER_BASE_HREF">
+            <meta charset="UTF-8">
+            <meta content="IE=Edge" http-equiv="X-UA-Compatible">
+            <meta name="description" content="DeadTime - AI-powered attention monetization platform">
+            <meta name="apple-mobile-web-app-capable" content="yes">
+            <meta name="apple-mobile-web-app-status-bar-style" content="black">
+            <meta name="apple-mobile-web-app-title" content="DeadTime">
+            <link rel="apple-touch-icon" href="icons/icon-192.png">
+            <link rel="icon" type="image/png" href="favicon.png"/>
+            <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+            <title>DeadTime - Monetize Your Time</title>
+            <link rel="manifest" href="manifest.json">
+            <style>
+              body { margin: 0; background-color: #0F0F23; }
+              .loading { 
+                position: absolute; 
+                top: 50%; 
+                left: 50%; 
+                transform: translate(-50%, -50%);
+                color: #6C63FF;
+                font-family: Arial, sans-serif;
+              }
+            </style>
+          </head>
+          <body>
+            <div class="loading">Loading DeadTime...</div>
+            <script>
+              window.addEventListener('load', () => {
+                if ('serviceWorker' in navigator) {
+                  navigator.serviceWorker.register('/sw.js');
+                }
+              });
+            </script>
+            <script src="main.dart.js" type="application/javascript"></script>
+          </body>
+          </html>
+          EOF
+      - name: Create App Icons
+        script: |
+          mkdir -p build/web/icons
+          # Create placeholder icons (replace with actual icons later)
+          echo "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==" | base64 -d > build/web/icons/icon-192.png
+          echo "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==" | base64 -d > build/web/icons/icon-512.png
     artifacts:
-      - build/ios/iphoneos/*.app
-      - build/ios/ipa/*.ipa
-      - flutter_drive.log
+      - build/web/**
     publishing:
       email:
         recipients:
