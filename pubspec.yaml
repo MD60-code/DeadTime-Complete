@@ -1,0 +1,82 @@
+name: deadtime
+description: AI-powered attention monetization platform for iOS
+
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+  flutter: ">=3.10.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  
+  # UI & Navigation
+  cupertino_icons: ^1.0.6
+  flutter_svg: ^2.0.7
+  lottie: ^2.6.0
+  animated_text_kit: ^4.2.2
+  shimmer: ^3.0.0
+  
+  # Location & Sensors
+  geolocator: ^10.1.0
+  permission_handler: ^11.0.1
+  sensors_plus: ^4.0.2
+  accelerometer: ^0.3.0
+  
+  # Background Processing
+  workmanager: ^0.5.2
+  flutter_background_service: ^5.0.5
+  
+  # Local Storage
+  shared_preferences: ^2.2.2
+  sqflite: ^2.3.0
+  path_provider: ^2.1.1
+  
+  # Network & API
+  http: ^1.1.0
+  dio: ^5.3.2
+  connectivity_plus: ^5.0.1
+  
+  # State Management
+  provider: ^6.0.5
+  riverpod: ^2.4.6
+  flutter_riverpod: ^2.4.6
+  
+  # Device Info
+  device_info_plus: ^9.1.0
+  package_info_plus: ^4.2.0
+  
+  # Notifications
+  flutter_local_notifications: ^16.1.0
+  
+  # Utils
+  intl: ^0.18.1
+  uuid: ^4.1.0
+  crypto: ^3.0.3
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.1
+  build_runner: ^2.4.7
+
+flutter:
+  uses-material-design: true
+  
+  assets:
+    - assets/images/
+    - assets/animations/
+    - assets/icons/
+  
+  fonts:
+    - family: Inter
+      fonts:
+        - asset: assets/fonts/Inter-Regular.ttf
+        - asset: assets/fonts/Inter-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/Inter-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/Inter-Bold.ttf
+          weight: 700
