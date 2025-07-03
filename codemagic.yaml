@@ -9,7 +9,6 @@ workflows:
         XCODE_SCHEME: "DeadTime"
         XCODE_PROJECT: "ios/DeadTime.xcodeproj"
       xcode: latest
-      cocoapods: default
     scripts:
       - name: Check iOS project structure
         script: |
@@ -17,14 +16,12 @@ workflows:
           ls -la
           echo "📱 iOS folder contents:"
           ls -la ios/ || echo "❌ iOS folder not found"
-      - name: Install CocoaPods dependencies
+          echo "📋 iOS project files:"
+          find ios/ -name "*.xcodeproj" -o -name "*.xcworkspace" || echo "❌ No Xcode project found"
+      - name: Build iOS app (Direct Xcode)
         script: |
           cd ios
-          pod install
-      - name: Build iOS app (unsigned)
-        script: |
-          cd ios
-          xcodebuild -workspace DeadTime.xcworkspace \
+          xcodebuild -project DeadTime.xcodeproj \
             -scheme DeadTime \
             -configuration Debug \
             -destination generic/platform=iOS \
