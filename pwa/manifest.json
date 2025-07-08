@@ -1,16 +1,40 @@
 {
   "name": "DeadTime - Monetize Your Time",
   "short_name": "DeadTime",
-  "description": "AI-powered attention monetization platform",
-  "start_url": "/",
+  "description": "Transform dead time into digital gold with AI-powered attention monetization",
+  "start_url": "./",
   "display": "standalone",
   "background_color": "#0F0F23",
   "theme_color": "#6C63FF",
+  "orientation": "portrait",
+  "scope": "./",
+  "lang": "en",
+  "categories": ["productivity", "business", "finance"],
   "icons": [
     {
-      "src": "favicon.png",
+      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'%3E%3Ccircle cx='96' cy='96' r='96' fill='%236C63FF'/%3E%3Cpath d='M96 32c-8.8 0-16 7.2-16 16v32H64c-8.8 0-16 7.2-16 16s7.2 16 16 16h16v32c0 8.8 7.2 16 16 16s16-7.2 16-16v-32h16c8.8 0 16-7.2 16-16s-7.2-16-16-16h-16V48c0-8.8-7.2-16-16-16z' fill='white'/%3E%3C/svg%3E",
       "sizes": "192x192",
-      "type": "image/png"
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Ccircle cx='256' cy='256' r='256' fill='%236C63FF'/%3E%3Cpath d='M256 64c-17.6 0-32 14.4-32 32v64h-64c-17.6 0-32 14.4-32 32s14.4 32 32 32h64v64c0 17.6 14.4 32 32 32s32-14.4 32-32v-64h64c17.6 0 32-14.4 32-32s-14.4-32-32-32h-64V96c0-17.6-14.4-32-32-32z' fill='white'/%3E%3C/svg%3E",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
     }
-  ]
+  ],
+  "screenshots": [
+    {
+      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 390 844'%3E%3Crect width='390' height='844' fill='%230F0F23'/%3E%3Ctext x='195' y='422' text-anchor='middle' fill='white' font-size='24'%3EDeadTime App%3C/text%3E%3C/svg%3E",
+      "sizes": "390x844",
+      "type": "image/svg+xml",
+      "form_factor": "narrow",
+      "label": "DeadTime mobile app"
+    }
+  ],
+  "prefer_related_applications": false,
+  "edge_side_panel": {
+    "preferred_width": 480
+  }
 }
